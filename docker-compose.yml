@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: rackview-db
+    environment:
+      POSTGRES_USER: rackview
+      POSTGRES_PASSWORD: rackview
+      POSTGRES_DB: rackview
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rackview"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rackview-backend
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: rackview
+      DB_PASSWORD: rackview
+      DB_NAME: rackview
+      DB_SSLMODE: disable
+      PORT: 8080
+      STATIC_PATH: /app/frontend/dist
+      INDEX_PATH: /app/frontend/dist/index.html
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      # Mount frontend dist if it exists locally
+      - ./frontend/dist:/app/frontend/dist:ro
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

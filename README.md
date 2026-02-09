@@ -1,6 +1,43 @@
-# Personal-website
+# RackView
 
+A rack management system for visualizing and managing server infrastructure.
 
+## Quick Start
+
+### Docker Compose (Recommended)
+
+```bash
+docker-compose up -d
+```
+
+The application will be available at `http://localhost:8080`.
+
+### Version Management
+
+RackView uses semantic versioning. Manage versions with:
+
+```bash
+# Get current version
+make version-get
+
+# Bump version
+make version-bump-patch   # 1.2.3 -> 1.2.4
+make version-bump-minor   # 1.2.3 -> 1.3.0
+make version-bump-major   # 1.2.3 -> 2.0.0
+
+# Create git tag
+make version-tag
+```
+
+Or use the scripts directly:
+- Linux/macOS: `./scripts/version.sh`
+- Windows: `.\scripts\version.ps1`
+
+### Docker & CI/CD
+
+- **Docker**: See [DOCKER.md](DOCKER.md) for detailed Docker build and deployment instructions
+- **GitHub Actions**: Automatically builds and pushes to GHCR on push to main/master or version tags
+- **Images**: Available at `ghcr.io/<username>/rackview:<tag>`
 
 ## Getting started
 

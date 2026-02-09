@@ -8,8 +8,11 @@ RUN apk add --no-cache git
 # Set working directory
 WORKDIR /build
 
-# Copy go mod files
-COPY backend/go.mod backend/go.sum* ./
+# Copy go mod files (go.mod is in backend directory)
+COPY backend/go.mod backend/go.sum* ./backend/
+WORKDIR /build/backend
+
+# Download dependencies
 RUN go mod download || true
 
 # Copy source code
@@ -19,14 +22,14 @@ COPY backend/ ./
 # CGO_ENABLED=0 for static binary
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -ldflags='-w -s -extldflags "-static"' \
-    -o server \
+    -o /build/server \
     ./cmd/server
 
 # Stage 2: Runtime
 FROM alpine:latest
 
-# Install ca-certificates for HTTPS
-RUN apk --no-cache add ca-certificates tzdata
+# Install ca-certificates and wget for HTTPS and healthcheck
+RUN apk --no-cache add ca-certificates tzdata wget
 
 # Create app user
 RUN addgroup -g 1000 appuser && \
@@ -35,10 +38,10 @@ RUN addgroup -g 1000 appuser && \
 WORKDIR /app
 
 # Copy binary from builder
-COPY --from=builder /build/server .
+COPY --from=builder /build/server ./server
 
 # Copy migrations
-COPY --from=builder /build/migrations ./migrations
+COPY --from=builder /build/backend/migrations ./migrations
 
 # Create frontend directory (will be mounted or copied separately if needed)
 RUN mkdir -p /app/frontend/dist
