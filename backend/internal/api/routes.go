@@ -55,6 +55,7 @@ func SetupRoutes(staticPath, indexPath string) *gin.Engine {
 				connections.GET("", networkHandler.GetAllConnections)
 				connections.GET("/:id", networkHandler.GetConnectionByID)
 				connections.POST("", networkHandler.CreateConnection)
+				connections.PUT("/:id", networkHandler.UpdateConnection)
 				connections.DELETE("/:id", networkHandler.DeleteConnection)
 			}
 		}

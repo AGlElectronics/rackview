@@ -75,9 +75,9 @@ func (s *HealthService) CheckDeviceHealth(deviceID int) (*HealthCheckResult, err
 		}
 	}
 
-	// If no health check method is configured, return warning
+	// If no health check method is configured, return unknown
 	if device.IPAddress == "" && device.HealthCheckURL == "" {
-		result.Status = models.DeviceStatusWarning
+		result.Status = models.DeviceStatusUnknown
 		result.Message = "No health check configured (IP address or health check URL required)"
 		return result, nil
 	}

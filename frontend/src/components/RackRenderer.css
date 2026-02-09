@@ -130,12 +130,13 @@
   position: absolute;
   width: 26px;
   text-align: right;
-  color: #555;
+  color: #777; /* Lighter color for better visibility */
   font-size: 0.7rem;
   font-family: monospace;
   font-weight: bold;
   height: var(--unit-height);
   line-height: var(--unit-height);
+  opacity: 1; /* Always fully visible */
 }
 
 .u-label.left {
@@ -150,7 +151,7 @@
 
 .rack-unit {
   min-height: var(--unit-height);
-  height: auto; /* Height will be set inline based on size_u */
+  /* Height is set inline based on size_u - inline style takes precedence */
   margin: 0;
   margin-bottom: 2px; /* Clear separation between devices */
   background: linear-gradient(180deg, #1f2329 0%, #161b20 100%);
@@ -168,10 +169,6 @@
   position: relative;
   overflow: hidden;
   flex-shrink: 0; /* Prevent shrinking */
-}
-
-.rack-unit.u-10 {
-  height: calc(var(--unit-height) * 10);
 }
 
 .rack-unit:hover {
@@ -200,12 +197,29 @@
 
 .unit-led.online {
   background: #3fb950;
-  box-shadow: 0 0 5px #3fb950;
+  box-shadow: 0 0 8px rgba(63, 185, 80, 0.6);
+  animation: breathing 2s ease-in-out infinite;
 }
 
 .unit-led.warning {
   background: #f0883e;
-  box-shadow: 0 0 5px #f0883e;
+  box-shadow: 0 0 8px rgba(240, 136, 62, 0.6);
+}
+
+.unit-led.unknown {
+  background: #6e7681;
+  box-shadow: 0 0 4px rgba(110, 118, 129, 0.3);
+}
+
+@keyframes breathing {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 8px rgba(63, 185, 80, 0.6);
+  }
+  50% {
+    opacity: 0.7;
+    box-shadow: 0 0 12px rgba(63, 185, 80, 0.9);
+  }
 }
 
 .unit-icon {
@@ -249,17 +263,18 @@
 .u-empty {
   height: var(--unit-height);
   border-bottom: 1px solid #1a1a1a;
-  opacity: 0.3;
+  opacity: 0.4; /* Increased visibility */
   position: relative;
   margin: 0;
   margin-bottom: 2px; /* Clear separation between slots */
   flex-shrink: 0; /* Prevent shrinking */
   transition: all 0.2s ease;
+  background: rgba(255, 255, 255, 0.02); /* Subtle background to make slots visible */
 }
 
 .u-empty.clickable {
   cursor: pointer;
-  opacity: 0.5;
+  opacity: 0.6; /* Increased visibility for clickable slots */
 }
 
 .u-empty.clickable:hover {
@@ -309,10 +324,8 @@
 }
 
 .rack-unit.dragging {
-  opacity: 0.5;
-  transform: scale(0.95);
+  opacity: 0;
   pointer-events: none;
-  border: 2px dashed var(--accent);
 }
 
 .u-empty.valid-drop-zone {

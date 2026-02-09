@@ -182,7 +182,24 @@
 
 .status-dot.online {
   background: #3fb950;
-  box-shadow: 0 0 10px #3fb950;
+  box-shadow: 0 0 10px rgba(63, 185, 80, 0.6);
+  animation: breathing 2s ease-in-out infinite;
+}
+
+.status-dot.unknown {
+  background: #6e7681;
+  box-shadow: 0 0 4px rgba(110, 118, 129, 0.3);
+}
+
+@keyframes breathing {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 10px rgba(63, 185, 80, 0.6);
+  }
+  50% {
+    opacity: 0.7;
+    box-shadow: 0 0 15px rgba(63, 185, 80, 0.9);
+  }
 }
 
 .status-dot.warning {

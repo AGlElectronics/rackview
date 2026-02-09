@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { deviceAPI } from '../services/api';
 import './DeviceDetails.css';
 
 function DeviceDetails({ device, onClose, onUpdate }) {
+  const detailsRef = useRef(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isCheckingHealth, setIsCheckingHealth] = useState(false);
   const [healthCheckResult, setHealthCheckResult] = useState(null);
@@ -58,11 +59,44 @@ function DeviceDetails({ device, onClose, onUpdate }) {
     }
   };
 
-  const statusColor = device.status === 'online' ? 'online' : (device.status === 'warning' ? 'warning' : 'offline');
+  // Handle Escape key to close
+  useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [onClose]);
+
+  // Handle click outside to close
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (detailsRef.current && !detailsRef.current.contains(e.target)) {
+        onClose();
+      }
+    };
+    // Use a small delay to avoid closing immediately when opening
+    const timeoutId = setTimeout(() => {
+      document.addEventListener('mousedown', handleClickOutside);
+    }, 100);
+    return () => {
+      clearTimeout(timeoutId);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [onClose]);
+
+  // Determine status color - use 'unknown' if status is not set or is 'unknown'
+  const statusColor = device.status === 'online' ? 'online' 
+    : (device.status === 'warning' ? 'warning' 
+    : (device.status === 'unknown' ? 'unknown' : 'offline'));
   const bottomU = device.position_u - device.size_u + 1;
 
   return (
-    <div className="device-details active">
+    <div className="device-details active" ref={detailsRef}>
       <div className="details-header">
         <div className="details-icon">{device.icon}</div>
         <div className="details-name">{device.name}</div>

@@ -1,13 +1,13 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import './RackRenderer.css';
 
 const UNIT_HEIGHT = 34; // px per U
 
 function RackRenderer({ rack, devices, onDeviceSelect, selectedDeviceId, onEmptySlotClick, onDeviceMove, isSelectedForAdd, allRacks, allDevices }) {
   const [draggedDevice, setDraggedDevice] = useState(null);
-  const [dragOverU, setDragOverU] = useState(null);
   const [hoveredSlot, setHoveredSlot] = useState(null);
-  const [dragPreview, setDragPreview] = useState(null);
+  // Use ref to persist drag state across re-renders
+  const draggedDeviceRef = useRef(null);
 
   // Check if a position is valid for dropping a device
   const isValidDropPosition = (targetU, deviceSize, deviceId) => {
@@ -20,106 +20,98 @@ function RackRenderer({ rack, devices, onDeviceSelect, selectedDeviceId, onEmpty
     const targetTopU = targetU;
     const targetBottomU = targetU - deviceSize + 1;
     const rackDevices = allDevices ? allDevices.filter(d => d.rack_id === rack.id) : devices;
-    return !rackDevices.some(d => {
+    const hasOverlap = rackDevices.some(d => {
       if (deviceId && d.id === deviceId) return false;
       const deviceTopU = d.position_u;
       const deviceBottomU = d.position_u - d.size_u + 1;
       // Check if ranges overlap: ranges overlap if they share any U slot
       // Two ranges [a1, a2] and [b1, b2] overlap if: !(a2 < b1 || a1 > b2)
       // In our case: targetTopU >= deviceBottomU && targetBottomU <= deviceTopU
-      return targetTopU >= deviceBottomU && targetBottomU <= deviceTopU;
+      const overlaps = targetTopU >= deviceBottomU && targetBottomU <= deviceTopU;
+      if (overlaps) {
+      }
+      return overlaps;
     });
+    const isValid = !hasOverlap;
+    return isValid;
   };
 
   const renderEmptySlot = (uNum) => {
     const isHovered = hoveredSlot === uNum && !draggedDevice;
-    const isDragOver = dragOverU === uNum;
     const isSelected = isSelectedForAdd && isHovered;
     
-    // Check if this slot is part of a valid drop zone for the dragged device
-    let isValidDrop = false;
-    let isPartOfDropZone = false;
-    if (draggedDevice && dragOverU) {
-      const device = allDevices ? allDevices.find(d => d.id === draggedDevice) : devices.find(d => d.id === draggedDevice);
-      if (device) {
-        const dropTopU = dragOverU;
-        const dropBottomU = dragOverU - device.size_u + 1;
-        isPartOfDropZone = uNum <= dropTopU && uNum >= dropBottomU;
-        isValidDrop = isValidDropPosition(dragOverU, device.size_u, draggedDevice);
-      }
-    }
+    // Disable visual feedback during drag to prevent UI flickering
+    const isPartOfDropZone = false;
+    const isValidDrop = false;
     
     return (
       <div 
         key={`empty-${uNum}`} 
-        className={`u-empty clickable ${isSelected ? 'selected-for-add' : ''} ${isPartOfDropZone ? (isValidDrop ? 'valid-drop-zone' : 'invalid-drop-zone') : ''}`}
+        className={`u-empty clickable ${isSelected ? 'selected-for-add' : ''}`}
         onClick={() => onEmptySlotClick && onEmptySlotClick(rack.id, uNum)}
         onMouseEnter={() => !draggedDevice && setHoveredSlot(uNum)}
         onMouseLeave={() => !draggedDevice && setHoveredSlot(null)}
+        onDragEnter={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        }}
         onDragOver={(e) => {
           e.preventDefault();
           e.stopPropagation();
-          if (draggedDevice) {
-            setDragOverU(uNum);
-            const device = allDevices ? allDevices.find(d => d.id === draggedDevice) : devices.find(d => d.id === draggedDevice);
-            if (device) {
-              setDragPreview({
-                topU: uNum,
-                bottomU: uNum - device.size_u + 1,
-                sizeU: device.size_u,
-                isValid: isValidDropPosition(uNum, device.size_u, draggedDevice),
-              });
-            }
-          }
+          // Don't update state during drag to prevent UI flickering
         }}
         onDragLeave={(e) => {
-          // Only clear if we're actually leaving the slot (not entering a child)
-          if (!e.currentTarget.contains(e.relatedTarget)) {
-            if (dragOverU === uNum) {
-              setDragOverU(null);
-              setDragPreview(null);
-            }
-          }
+          // Don't update state during drag to prevent UI flickering
+          e.preventDefault();
+          e.stopPropagation();
         }}
         onDrop={(e) => {
           e.preventDefault();
           e.stopPropagation();
-          if (draggedDevice && onDeviceMove) {
-            const device = allDevices ? allDevices.find(d => d.id === draggedDevice) : devices.find(d => d.id === draggedDevice);
-            if (device && isValidDropPosition(uNum, device.size_u, draggedDevice)) {
-              onDeviceMove(draggedDevice, rack.id, uNum);
+          
+          // Read device ID from dataTransfer (this is the reliable source)
+          let deviceId = null;
+          try {
+            const data = e.dataTransfer.getData('text/plain');
+            if (data) {
+              deviceId = parseInt(data);
+            }
+          } catch (err) {
+            console.warn('Could not read drag data:', err);
+          }
+          
+          // Fall back to ref, then state if dataTransfer didn't work
+          if (!deviceId && draggedDeviceRef.current) {
+            deviceId = draggedDeviceRef.current;
+          } else if (!deviceId && draggedDevice) {
+            deviceId = draggedDevice;
+          }
+          
+          if (deviceId && onDeviceMove) {
+            const device = allDevices ? allDevices.find(d => d.id === deviceId) : devices.find(d => d.id === deviceId);
+            if (device) {
+              const isValid = isValidDropPosition(uNum, device.size_u, deviceId);
+              if (isValid) {
+                onDeviceMove(deviceId, rack.id, uNum);
+              }
             }
           }
+          
+          // Clear drag state and ref
+          draggedDeviceRef.current = null;
           setDraggedDevice(null);
           setDragOverU(null);
           setDragPreview(null);
         }}
         style={{
-          backgroundColor: isPartOfDropZone 
-            ? (isValidDrop ? 'rgba(63, 185, 80, 0.2)' : 'rgba(218, 54, 51, 0.2)')
-            : isDragOver 
-              ? 'rgba(88, 166, 255, 0.3)' 
-              : isHovered 
-                ? 'rgba(88, 166, 255, 0.15)' 
-                : 'transparent',
-          border: isPartOfDropZone
-            ? (isValidDrop ? '2px solid #3fb950' : '2px solid #da3633')
-            : isDragOver 
-              ? '2px dashed var(--accent)' 
-              : isHovered 
-                ? '1px solid var(--accent)' 
-                : 'none',
+          backgroundColor: isHovered && !draggedDevice ? 'rgba(88, 166, 255, 0.15)' : 'transparent',
+          border: isHovered && !draggedDevice ? '1px solid var(--accent)' : 'none',
         }}
       >
         <span className="u-label left">U{uNum}</span>
         <span className="u-label right">U{uNum}</span>
         {isHovered && !draggedDevice && (
           <div className="slot-hint">Click to add device</div>
-        )}
-        {isPartOfDropZone && dragPreview && (
-          <div className={`drop-preview ${isValidDrop ? 'valid' : 'invalid'}`}>
-            {isValidDrop ? '✓ Drop here' : '✗ Invalid'}
-          </div>
         )}
       </div>
     );
@@ -170,40 +162,82 @@ function RackRenderer({ rack, devices, onDeviceSelect, selectedDeviceId, onEmpty
     }
 
     const isDragging = draggedDevice === device.id;
+    const calculatedHeight = device.size_u * UNIT_HEIGHT;
     
     return (
       <div
         key={device.id}
         className={`rack-unit ${typeClass} ${isSelected ? 'selected' : ''} ${isDragging ? 'dragging' : ''} draggable`}
         style={{
-          height: `${device.size_u * UNIT_HEIGHT}px`,
+          height: `${calculatedHeight}px`,
+          opacity: isDragging ? 0 : 1,
+          pointerEvents: isDragging ? 'none' : 'auto',
+          cursor: onDeviceMove ? 'grab' : 'default',
         }}
         draggable={!!onDeviceMove}
         onDragStart={(e) => {
           if (onDeviceMove) {
-            e.stopPropagation(); // Prevent triggering container scroll drag
-            setDraggedDevice(device.id);
+            e.stopPropagation();
+            // Set ref immediately (persists across re-renders)
+            draggedDeviceRef.current = device.id;
+            // Delay state update to prevent re-render from cancelling drag
+            setTimeout(() => {
+              setDraggedDevice(device.id);
+            }, 0);
             e.dataTransfer.effectAllowed = 'move';
             e.dataTransfer.setData('text/plain', device.id.toString());
             e.dataTransfer.setData('application/json', JSON.stringify({ deviceId: device.id, rackId: rack.id }));
-            // Create custom drag image
-            const dragImage = e.currentTarget.cloneNode(true);
-            dragImage.style.opacity = '0.8';
-            dragImage.style.transform = 'rotate(2deg)';
+            // Use a simple, visible drag image
+            const dragImage = document.createElement('div');
+            dragImage.textContent = device.name;
+            dragImage.style.position = 'fixed';
+            dragImage.style.top = '-1000px';
+            dragImage.style.left = '-1000px';
+            dragImage.style.padding = '8px 12px';
+            dragImage.style.background = '#161b22';
+            dragImage.style.border = '1px solid #30363d';
+            dragImage.style.borderRadius = '4px';
+            dragImage.style.color = '#f0f6fc';
+            dragImage.style.fontSize = '14px';
+            dragImage.style.whiteSpace = 'nowrap';
+            dragImage.style.zIndex = '9999';
             document.body.appendChild(dragImage);
-            e.dataTransfer.setDragImage(dragImage, e.clientX - e.currentTarget.getBoundingClientRect().left, e.clientY - e.currentTarget.getBoundingClientRect().top);
-            setTimeout(() => document.body.removeChild(dragImage), 0);
+            e.dataTransfer.setDragImage(dragImage, 0, 0);
+            // Clean up after a short delay
+            requestAnimationFrame(() => {
+              if (document.body.contains(dragImage)) {
+                document.body.removeChild(dragImage);
+              }
+            });
+          } else {
+            // Prevent drag if no handler
+            e.preventDefault();
           }
         }}
         onDragEnd={(e) => {
           e.stopPropagation();
-          setDraggedDevice(null);
-          setDragOverU(null);
-          setDragPreview(null);
-          setHoveredSlot(null);
+          // Don't clear state immediately - let the drop handler process first
+          // Only clear if drop didn't happen (e.g., dragged outside)
+          // The drop handler will clear state after processing
+          // Use a longer timeout to ensure drop handler has time to execute
+          setTimeout(() => {
+            // Only clear if we still have drag state (drop didn't clear it)
+            if (draggedDeviceRef.current || draggedDevice) {
+              draggedDeviceRef.current = null;
+              setDraggedDevice(null);
+              setDragOverU(null);
+              setDragPreview(null);
+              setHoveredSlot(null);
+            }
+          }, 200);
         }}
         onDrag={(e) => {
           e.stopPropagation(); // Prevent container scroll during device drag
+        }}
+        onMouseDown={(e) => {
+          // Only stop propagation if we're not starting a drag
+          // Allow the drag to start naturally
+          // Don't stop propagation here - let the drag start
         }}
         onClick={(e) => {
           if (!isDragging) {
@@ -214,7 +248,7 @@ function RackRenderer({ rack, devices, onDeviceSelect, selectedDeviceId, onEmpty
       >
         {leftLabels}
         {rightLabels}
-        <div className={`unit-led ${device.status}`}></div>
+        <div className={`unit-led ${device.status || 'unknown'}`}></div>
         <div className="unit-icon">{device.icon}</div>
         <div className="unit-info">
           <div className="unit-name">{device.name}</div>
@@ -265,7 +299,6 @@ function RackRenderer({ rack, devices, onDeviceSelect, selectedDeviceId, onEmpty
     <div className={`rack-column ${isSelectedForAdd ? 'selected-for-add' : ''} ${isDragOverRack ? 'drag-over' : ''}`}>
       <div className="rack-title">
         {rack.name} • {rack.size_u}U
-        {isSelectedForAdd && <span className="add-indicator">Adding device...</span>}
         {isDragOverRack && dragPreview && (
           <span className={`drag-status ${dragPreview.isValid ? 'valid' : 'invalid'}`}>
             {dragPreview.isValid ? '✓ Valid drop' : '✗ Invalid'}
@@ -287,11 +320,9 @@ function RackRenderer({ rack, devices, onDeviceSelect, selectedDeviceId, onEmpty
           e.stopPropagation();
         }}
         onDragLeave={(e) => {
-          // Clear drag state when leaving the entire rack frame
-          if (!e.currentTarget.contains(e.relatedTarget)) {
-            setDragOverU(null);
-            setDragPreview(null);
-          }
+          // Don't update state during drag to prevent UI flickering
+          e.preventDefault();
+          e.stopPropagation();
         }}
         onDrop={(e) => {
           // Handle drop at rack frame level for cross-rack moves
@@ -302,35 +333,6 @@ function RackRenderer({ rack, devices, onDeviceSelect, selectedDeviceId, onEmpty
         <div className="rail left"></div>
         <div className="rail right"></div>
         {reversedSlots}
-        {dragPreview && draggedDevice && (
-          <div 
-            className="drag-preview-overlay"
-            style={{
-              position: 'absolute',
-              // Calculate from bottom: U1 is at bottom, so position from bottom up
-              bottom: `${(dragPreview.bottomU - 1) * UNIT_HEIGHT}px`,
-              left: '40px',
-              right: '40px',
-              height: `${dragPreview.sizeU * UNIT_HEIGHT}px`,
-              backgroundColor: dragPreview.isValid ? 'rgba(63, 185, 80, 0.15)' : 'rgba(218, 54, 51, 0.15)',
-              border: `2px ${dragPreview.isValid ? 'solid' : 'dashed'} ${dragPreview.isValid ? '#3fb950' : '#da3633'}`,
-              borderRadius: '4px',
-              pointerEvents: 'none',
-              zIndex: 100,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: dragPreview.isValid ? '#3fb950' : '#da3633',
-              fontWeight: 700,
-              fontSize: '0.9rem',
-              boxShadow: dragPreview.isValid 
-                ? '0 0 20px rgba(63, 185, 80, 0.5)' 
-                : '0 0 20px rgba(218, 54, 51, 0.5)',
-            }}
-          >
-            {dragPreview.isValid ? '✓ Drop here' : '✗ Invalid position'}
-          </div>
-        )}
       </div>
     </div>
   );

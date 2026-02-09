@@ -103,21 +103,7 @@ func (s *NetworkService) CreateConnection(req models.CreateConnectionRequest) (*
 		return nil, fmt.Errorf("target device not found: %w", err)
 	}
 
-	// Check for duplicate connection
-	var exists bool
-	err = database.DB.QueryRow(`
-		SELECT EXISTS(
-			SELECT 1 FROM network_connections
-			WHERE source_device_id = $1 AND target_device_id = $2
-		)
-	`, req.SourceDeviceID, req.TargetDeviceID).Scan(&exists)
-	if err != nil {
-		return nil, fmt.Errorf("failed to check duplicate: %w", err)
-	}
-	if exists {
-		return nil, fmt.Errorf("connection already exists")
-	}
-
+	// Allow multiple connections between the same devices (e.g., multiple ports/interfaces)
 	var conn models.NetworkConnection
 	err = database.DB.QueryRow(`
 		INSERT INTO network_connections (source_device_id, target_device_id, connection_type, port_info, speed)
@@ -133,6 +119,37 @@ func (s *NetworkService) CreateConnection(req models.CreateConnectionRequest) (*
 	}
 
 	// Load device details
+	source, err := deviceService.GetDeviceByID(conn.SourceDeviceID)
+	if err == nil {
+		conn.SourceDevice = source
+	}
+	target, err := deviceService.GetDeviceByID(conn.TargetDeviceID)
+	if err == nil {
+		conn.TargetDevice = target
+	}
+
+	return &conn, nil
+}
+
+// UpdateConnection updates an existing network connection
+func (s *NetworkService) UpdateConnection(id int, req models.UpdateConnectionRequest) (*models.NetworkConnection, error) {
+	var conn models.NetworkConnection
+	err := database.DB.QueryRow(`
+		UPDATE network_connections
+		SET connection_type = $1, port_info = $2, speed = $3
+		WHERE id = $4
+		RETURNING id, source_device_id, target_device_id, connection_type, port_info, speed, created_at
+	`, req.ConnectionType, req.PortInfo, req.Speed, id).Scan(
+		&conn.ID, &conn.SourceDeviceID, &conn.TargetDeviceID,
+		&conn.ConnectionType, &conn.PortInfo, &conn.Speed, &conn.CreatedAt,
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to update connection: %w", err)
+	}
+
+	// Load device details
+	deviceService := NewDeviceService()
 	source, err := deviceService.GetDeviceByID(conn.SourceDeviceID)
 	if err == nil {
 		conn.SourceDevice = source

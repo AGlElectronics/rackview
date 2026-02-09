@@ -19,11 +19,40 @@
   padding: 30px 20px;
 }
 
+.header-top {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  margin-bottom: 10px;
+  position: relative;
+}
+
+.back-btn {
+  position: absolute;
+  left: 20px;
+  padding: 8px 16px;
+  background: #21262d;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: #c9d1d9;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s;
+  font-size: 0.9rem;
+}
+
+.back-btn:hover {
+  background: #30363d;
+  border-color: #58a6ff;
+  color: #58a6ff;
+}
+
 .page-header h1 {
   font-size: 2rem;
   color: #f0f6fc;
   font-weight: 700;
-  margin-bottom: 10px;
+  margin: 0;
 }
 
 .network-controls {
@@ -113,12 +142,25 @@
   width: calc(100% - 40px);
   height: calc(100vh - 200px);
   min-height: 600px;
+  max-height: calc(100vh - 200px);
   background: #0d1117;
   border: 1px solid var(--border-color);
   border-radius: 12px;
   margin: 20px;
   overflow: hidden;
   position: relative;
+  display: block;
+}
+
+.network-graph-container .react-flow {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 600px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
 }
 
 .no-devices {
@@ -131,6 +173,22 @@
 }
 
 /* React Flow overrides */
+.network-graph-container .react-flow {
+  background: #0d1117;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.network-graph-container .react-flow__renderer {
+  width: 100%;
+  height: 100%;
+}
+
+.network-graph-container .react-flow__viewport {
+  width: 100%;
+  height: 100%;
+}
+
 .react-flow {
   background: #0d1117;
 }
@@ -140,11 +198,29 @@
 }
 
 .react-flow__edge-path {
-  stroke-width: 2;
+  /* Remove default stroke to allow edge-specific colors from style prop */
+  /* stroke and strokeWidth are set via inline styles in the edge configuration */
+}
+
+/* Ensure edges are visible and clear */
+.react-flow__edge {
+  pointer-events: stroke;
 }
 
 .react-flow__edge.selected .react-flow__edge-path {
-  stroke-width: 3;
+  stroke-width: 4;
+}
+
+/* Ensure edge text labels are visible */
+.react-flow__edge-text {
+  fill: #58a6ff !important;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.react-flow__edge-textbg {
+  fill: #0d1117 !important;
+  fill-opacity: 0.8;
 }
 
 .react-flow__controls {
@@ -220,7 +296,28 @@
 
 .device-node-status.online {
   background: #3fb950;
-  box-shadow: 0 0 6px #3fb950;
+  box-shadow: 0 0 8px rgba(63, 185, 80, 0.6);
+  animation: breathing 2s ease-in-out infinite;
+  width: 10px;
+  height: 10px;
+  display: inline-block;
+  margin-left: 8px;
+}
+
+.device-node-status.unknown {
+  background: #6e7681;
+  box-shadow: 0 0 4px rgba(110, 118, 129, 0.3);
+}
+
+@keyframes breathing {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 8px rgba(63, 185, 80, 0.6);
+  }
+  50% {
+    opacity: 0.7;
+    box-shadow: 0 0 12px rgba(63, 185, 80, 0.9);
+  }
 }
 
 .device-node-status.warning {
@@ -242,4 +339,263 @@
   text-align: center;
   border-top: 1px solid rgba(88, 166, 255, 0.3);
   border-radius: 0 0 8px 8px;
+}
+
+.device-node-badge.selected {
+  background: rgba(88, 166, 255, 0.3);
+  color: #58a6ff;
+}
+
+.device-node-badge.pending {
+  background: rgba(63, 185, 80, 0.3);
+  color: #3fb950;
+}
+
+/* Connection creation UI */
+.connect-btn {
+  padding: 8px 20px;
+  background: #238636;
+  border: 1px solid #2ea043;
+  border-radius: 6px;
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.connect-btn:hover {
+  background: #2ea043;
+}
+
+.connect-btn.active {
+  background: #da3633;
+  border-color: #f85149;
+}
+
+.connect-btn.active:hover {
+  background: #f85149;
+}
+
+.connection-hint {
+  text-align: center;
+  padding: 12px;
+  background: rgba(88, 166, 255, 0.1);
+  border: 1px solid rgba(88, 166, 255, 0.3);
+  border-radius: 6px;
+  margin: 0 20px 10px 20px;
+  color: #58a6ff;
+  font-weight: 600;
+}
+
+.connection-form-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.connection-form {
+  background: #161b22;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 30px;
+  min-width: 400px;
+  max-width: 500px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.connection-form h3 {
+  color: #f0f6fc;
+  margin-bottom: 20px;
+  font-size: 1.5rem;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  color: #c9d1d9;
+  font-weight: 600;
+  margin-bottom: 8px;
+  font-size: 0.9rem;
+}
+
+.form-group select,
+.form-group input {
+  width: 100%;
+  padding: 10px;
+  background: #0d1117;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: #c9d1d9;
+  font-size: 0.95rem;
+  transition: border-color 0.2s;
+}
+
+.form-group select:focus,
+.form-group input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.form-group input::placeholder {
+  color: #6e7681;
+}
+
+.form-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 30px;
+}
+
+.btn-primary {
+  padding: 10px 20px;
+  background: #238636;
+  border: 1px solid #2ea043;
+  border-radius: 6px;
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.btn-primary:hover {
+  background: #2ea043;
+}
+
+.btn-secondary {
+  padding: 10px 20px;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: #c9d1d9;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.btn-secondary:hover {
+  background: #21262d;
+  border-color: #30363d;
+}
+
+.btn-danger {
+  padding: 10px 20px;
+  background: #da3633;
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.btn-danger:hover {
+  background: #b62324;
+}
+
+/* Connection Details Panel */
+.connection-details-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.connection-details-panel {
+  background: #161b22;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 24px;
+  width: 90%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.connection-details-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.connection-details-header h3 {
+  margin: 0;
+  color: #f0f6fc;
+  font-size: 1.5rem;
+}
+
+.connection-details-header .close-btn {
+  background: none;
+  border: none;
+  color: #8b949e;
+  font-size: 28px;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: 0.2s;
+}
+
+.connection-details-header .close-btn:hover {
+  background: #21262d;
+  color: #f0f6fc;
+}
+
+.connection-details-content {
+  margin-bottom: 20px;
+}
+
+.connection-info {
+  margin-bottom: 20px;
+  padding: 16px;
+  background: #0d1117;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.info-row:last-child {
+  border-bottom: none;
+}
+
+.info-row label {
+  font-weight: 600;
+  color: #8b949e;
+  margin-right: 16px;
+}
+
+.info-row span {
+  color: #f0f6fc;
+  text-align: right;
 }

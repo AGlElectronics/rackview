@@ -18,6 +18,7 @@ const (
 	DeviceStatusOnline  DeviceStatus = "online"
 	DeviceStatusOffline DeviceStatus = "offline"
 	DeviceStatusWarning DeviceStatus = "warning"
+	DeviceStatusUnknown DeviceStatus = "unknown"
 )
 
 // Device represents a device in a rack
@@ -55,7 +56,7 @@ type CreateDeviceRequest struct {
 	Type           DeviceType  `json:"type" binding:"required,oneof=server network storage"`
 	PositionU      int         `json:"position_u" binding:"required,min=1"`
 	SizeU          int         `json:"size_u" binding:"required,min=1"`
-	Status         DeviceStatus `json:"status" binding:"oneof=online offline warning"`
+	Status         DeviceStatus `json:"status" binding:"oneof=online offline warning unknown"`
 	Model          string      `json:"model"`
 	IPAddress      string      `json:"ip_address"`
 	HealthCheckURL string      `json:"health_check_url"`

@@ -34,6 +34,7 @@ export const networkAPI = {
   getAllConnections: () => api.get('/network/connections'),
   getConnectionById: (id) => api.get(`/network/connections/${id}`),
   createConnection: (data) => api.post('/network/connections', data),
+  updateConnection: (id, data) => api.put(`/network/connections/${id}`, data),
   deleteConnection: (id) => api.delete(`/network/connections/${id}`),
 };
 

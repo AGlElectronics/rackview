@@ -66,6 +66,29 @@ func (h *NetworkHandler) CreateConnection(c *gin.Context) {
 	c.JSON(http.StatusCreated, conn)
 }
 
+// UpdateConnection handles PUT /api/network/connections/:id
+func (h *NetworkHandler) UpdateConnection(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid connection ID"})
+		return
+	}
+
+	var req models.UpdateConnectionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	conn, err := h.service.UpdateConnection(id, req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, conn)
+}
+
 // DeleteConnection handles DELETE /api/network/connections/:id
 func (h *NetworkHandler) DeleteConnection(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))

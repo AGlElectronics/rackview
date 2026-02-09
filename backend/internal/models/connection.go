@@ -23,3 +23,10 @@ type CreateConnectionRequest struct {
 	PortInfo       string `json:"port_info"`
 	Speed          string `json:"speed"`
 }
+
+// UpdateConnectionRequest represents a request to update a network connection
+type UpdateConnectionRequest struct {
+	ConnectionType string `json:"connection_type"`
+	PortInfo       string `json:"port_info"`
+	Speed          string `json:"speed"`
+}

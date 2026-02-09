@@ -51,7 +51,38 @@ function RackView() {
       for (const rack of racks) {
         try {
           const response = await deviceAPI.getAll(rack.id);
-          allDevices[rack.id] = response.data;
+          const devices = response.data || [];
+          
+          // Set status to unknown for devices without health check config
+          const devicesWithStatus = devices.map(device => {
+            if (!device.ip_address && !device.health_check_url) {
+              return { ...device, status: 'unknown' };
+            }
+            return device;
+          });
+          
+          // Auto-check health for devices with IP or health check URL (non-blocking)
+          devicesWithStatus.forEach((device) => {
+            if (device.ip_address || device.health_check_url) {
+              // Check health and update status (non-blocking)
+              deviceAPI.checkHealth(device.id, true).then(() => {
+                // Reload device after health check to get updated status
+                deviceAPI.getById(device.id).then((updatedResponse) => {
+                  setDevicesByRack(prev => {
+                    const updated = { ...prev };
+                    if (updated[rack.id]) {
+                      updated[rack.id] = updated[rack.id].map(d => 
+                        d.id === device.id ? updatedResponse.data : d
+                      );
+                    }
+                    return updated;
+                  });
+                }).catch(() => {});
+              }).catch(() => {});
+            }
+          });
+          
+          allDevices[rack.id] = devicesWithStatus;
         } catch (error) {
           console.error(`Failed to load devices for rack ${rack.id}:`, error);
           allDevices[rack.id] = [];
@@ -120,7 +151,10 @@ function RackView() {
   const handleDeviceMove = async (deviceId, newRackId, newPositionU) => {
     try {
       const device = Object.values(devicesByRack).flat().find(d => d.id === deviceId);
-      if (!device) return;
+      if (!device) {
+        console.error('Device not found:', deviceId);
+        return;
+      }
 
       const updateData = { position_u: newPositionU };
       // If moving to a different rack, update rack_id
@@ -128,6 +162,7 @@ function RackView() {
         updateData.rack_id = newRackId;
       }
 
+      console.log('Updating device:', deviceId, 'with data:', updateData);
       await deviceAPI.update(deviceId, updateData);
       
       // Reload devices for both old and new racks
@@ -135,7 +170,9 @@ function RackView() {
       if (newRackId !== device.rack_id) {
         loadDevicesForRack(newRackId);
       }
+      console.log('Device moved successfully');
     } catch (error) {
+      console.error('Error moving device:', error);
       alert('Error moving device: ' + (error.response?.data?.error || error.message));
     }
   };
@@ -143,11 +180,16 @@ function RackView() {
   // Drag-to-scroll handlers
   const handleMouseDown = (e) => {
     // Don't start drag if clicking on interactive elements (buttons, devices, etc.)
+    // Check if it's a draggable device unit first
     if (e.target.closest('button') || 
-        e.target.closest('.rack-unit') || 
-        e.target.closest('.u-empty') ||
-        e.target.closest('.rack-frame') ||
-        e.target.closest('.rack-column')) {
+        e.target.closest('.rack-unit.draggable') || 
+        e.target.closest('.u-empty.clickable')) {
+      return;
+    }
+    // Only start drag-to-scroll on the container background, not on rack elements
+    if (e.target.closest('.rack-frame') || 
+        e.target.closest('.rack-column') ||
+        e.target.closest('.rack-unit')) {
       return;
     }
     setIsDragging(true);
@@ -160,6 +202,13 @@ function RackView() {
 
   const handleMouseMove = (e) => {
     if (!isDragging) return;
+    // Don't prevent default if a drag operation is in progress (check for drag events)
+    // This allows device dragging to work while preventing scroll drag interference
+    if (e.buttons === 0) {
+      // Mouse button released, stop drag-to-scroll
+      setIsDragging(false);
+      return;
+    }
     e.preventDefault();
     const container = e.currentTarget;
     const x = e.pageX - container.offsetLeft;

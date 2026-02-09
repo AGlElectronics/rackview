@@ -166,8 +166,14 @@ func (s *DeviceService) CreateDevice(req models.CreateDeviceRequest) (*models.De
 		return nil, fmt.Errorf("failed to query rack: %w", err)
 	}
 
-	if req.PositionU+req.SizeU-1 > rackSize {
-		return nil, fmt.Errorf("device does not fit in rack (position %d + size %d exceeds rack size %d)", req.PositionU, req.SizeU, rackSize)
+	// position_u is the TOP slot, device extends downward
+	// So bottom U = position_u - size_u + 1
+	bottomU := req.PositionU - req.SizeU + 1
+	if bottomU < 1 {
+		return nil, fmt.Errorf("device does not fit in rack (position %d - size %d + 1 = %d is below U1)", req.PositionU, req.SizeU, bottomU)
+	}
+	if req.PositionU > rackSize {
+		return nil, fmt.Errorf("device does not fit in rack (position %d exceeds rack size %d)", req.PositionU, rackSize)
 	}
 
 	// Check for overlaps
@@ -291,8 +297,14 @@ func (s *DeviceService) UpdateDevice(id int, req models.UpdateDeviceRequest) (*m
 			return nil, fmt.Errorf("failed to query rack: %w", err)
 		}
 
-		if positionU+sizeU-1 > rackSize {
-			return nil, fmt.Errorf("device does not fit in rack")
+		// position_u is the TOP slot, device extends downward
+		// So bottom U = position_u - size_u + 1
+		bottomU := positionU - sizeU + 1
+		if bottomU < 1 {
+			return nil, fmt.Errorf("device does not fit in rack (position %d - size %d + 1 = %d is below U1)", positionU, sizeU, bottomU)
+		}
+		if positionU > rackSize {
+			return nil, fmt.Errorf("device does not fit in rack (position %d exceeds rack size %d)", positionU, rackSize)
 		}
 
 		// Check overlaps
@@ -326,10 +338,11 @@ func (s *DeviceService) UpdateDevice(id int, req models.UpdateDeviceRequest) (*m
 			RETURNING id, rack_id, name, icon, type, position_u, size_u, status, model, ip_address, health_check_url, created_at, updated_at
 		`, setClause, argPos)
 
+		var ipAddress, healthCheckURL sql.NullString
 		err = database.DB.QueryRow(query, args...).Scan(
 			&current.ID, &current.RackID, &current.Name, &current.Icon, &current.Type,
 			&current.PositionU, &current.SizeU, &current.Status, &current.Model,
-			&current.IPAddress, &current.HealthCheckURL,
+			&ipAddress, &healthCheckURL,
 			&current.CreatedAt, &current.UpdatedAt,
 		)
 
@@ -338,6 +351,18 @@ func (s *DeviceService) UpdateDevice(id int, req models.UpdateDeviceRequest) (*m
 		}
 		if err != nil {
 			return nil, fmt.Errorf("failed to update device: %w", err)
+		}
+		
+		// Convert NullString to string
+		if ipAddress.Valid {
+			current.IPAddress = ipAddress.String
+		} else {
+			current.IPAddress = ""
+		}
+		if healthCheckURL.Valid {
+			current.HealthCheckURL = healthCheckURL.String
+		} else {
+			current.HealthCheckURL = ""
 		}
 	}
 
@@ -425,16 +450,31 @@ func (s *DeviceService) setDeviceSpecs(deviceID int, specs map[string]string) er
 }
 
 // checkDeviceOverlap checks if a device position overlaps with existing devices
+// position_u is the TOP slot, device extends downward
+// So a device at position_u with size_u occupies: [position_u, position_u - size_u + 1]
 func (s *DeviceService) checkDeviceOverlap(rackID, positionU, sizeU int, excludeDeviceID *int) (bool, error) {
+	// Calculate the bottom U slot for the new device
+	newTopU := positionU
+	newBottomU := positionU - sizeU + 1
+	
+	// Check if any existing device overlaps with the range [newTopU, newBottomU]
+	// An existing device at position_u with size_u occupies: [position_u, position_u - size_u + 1]
+	// Two ranges [a_top, a_bottom] and [b_top, b_bottom] overlap if:
+	//   a_top >= b_bottom AND a_bottom <= b_top
 	query := `
 		SELECT COUNT(*) > 0
 		FROM devices
 		WHERE rack_id = $1
-		AND id != COALESCE($4, -1)
+		AND id != COALESCE($3, -1)
 		AND (
-			(position_u <= $2 AND position_u + size_u - 1 >= $2) OR
-			(position_u <= $2 + $3 - 1 AND position_u + size_u - 1 >= $2 + $3 - 1) OR
-			(position_u >= $2 AND position_u + size_u - 1 <= $2 + $3 - 1)
+			-- Existing device's top is within new device's range
+			(position_u <= $2 AND position_u >= $4) OR
+			-- Existing device's bottom is within new device's range
+			(position_u - size_u + 1 <= $2 AND position_u - size_u + 1 >= $4) OR
+			-- Existing device completely contains new device
+			(position_u >= $2 AND position_u - size_u + 1 <= $4) OR
+			-- New device completely contains existing device
+			(position_u <= $2 AND position_u - size_u + 1 >= $4)
 		)
 	`
 
@@ -444,6 +484,7 @@ func (s *DeviceService) checkDeviceOverlap(rackID, positionU, sizeU int, exclude
 	}
 
 	var overlaps bool
-	err := database.DB.QueryRow(query, rackID, positionU, sizeU, excludeID).Scan(&overlaps)
+	// Parameters: $1=rackID, $2=newTopU, $3=excludeID, $4=newBottomU
+	err := database.DB.QueryRow(query, rackID, newTopU, excludeID, newBottomU).Scan(&overlaps)
 	return overlaps, err
 }
