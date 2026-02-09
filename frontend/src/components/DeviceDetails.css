@@ -1,9 +1,11 @@
 .device-details {
   display: none;
+  height: 100%;
+  flex-direction: column;
 }
 
 .device-details.active {
-  display: block;
+  display: flex;
   animation: slideIn 0.3s ease;
 }
 
@@ -49,6 +51,8 @@
 
 .details-content {
   padding: 30px;
+  flex: 1;
+  overflow-y: auto;
 }
 
 .spec-row {
@@ -81,6 +85,10 @@
   padding-top: 20px;
   border-top: 2px solid #222;
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  align-items: center;
 }
 
 .status-badge {
@@ -95,6 +103,75 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 1px;
+}
+
+.btn-health-check {
+  padding: 10px 20px;
+  background: linear-gradient(135deg, #21262d 0%, #161b22 100%);
+  border: 2px solid var(--accent);
+  color: var(--accent);
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s;
+  font-size: 0.9rem;
+  box-shadow: 0 0 10px rgba(88, 166, 255, 0.2);
+}
+
+.btn-health-check:hover:not(:disabled) {
+  background: linear-gradient(135deg, #30363d 0%, #21262d 100%);
+  border-color: #fff;
+  color: #fff;
+  box-shadow: 0 0 15px rgba(88, 166, 255, 0.4);
+  transform: translateY(-2px);
+}
+
+.btn-health-check:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.health-check-result {
+  padding: 15px;
+  border-radius: 8px;
+  margin-top: 10px;
+  width: 100%;
+  text-align: left;
+  font-size: 0.9rem;
+}
+
+.health-check-result.online {
+  background: rgba(63, 185, 80, 0.1);
+  border: 1px solid rgba(63, 185, 80, 0.3);
+  color: #3fb950;
+}
+
+.health-check-result.warning {
+  background: rgba(240, 136, 62, 0.1);
+  border: 1px solid rgba(240, 136, 62, 0.3);
+  color: #f0883e;
+}
+
+.health-check-result.offline {
+  background: rgba(218, 54, 51, 0.1);
+  border: 1px solid rgba(218, 54, 51, 0.3);
+  color: #da3633;
+}
+
+.health-check-status {
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.health-check-message {
+  margin-bottom: 5px;
+  opacity: 0.9;
+}
+
+.health-check-latency {
+  font-size: 0.85rem;
+  opacity: 0.8;
+  font-family: monospace;
 }
 
 .status-dot {
@@ -217,17 +294,22 @@
 }
 
 .close-btn {
+  position: sticky;
+  bottom: 0;
   width: calc(100% - 60px);
-  margin: 0 30px 30px;
-  padding: 14px;
+  margin: 30px 30px 30px;
+  padding: 14px 20px;
   background: #21262d;
-  border: 1px solid var(--border-color);
+  border: 2px solid var(--border-color);
   color: #c9d1d9;
   border-radius: 8px;
   cursor: pointer;
   font-weight: 600;
   font-size: 1rem;
   transition: all 0.2s;
+  display: block;
+  text-align: center;
+  z-index: 10;
 }
 
 .close-btn:hover {
@@ -236,4 +318,8 @@
   border-color: var(--accent);
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(88, 166, 255, 0.3);
+}
+
+.close-btn:active {
+  transform: translateY(0);
 }

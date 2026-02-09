@@ -19,7 +19,7 @@ func NewNetworkService() *NetworkService {
 // GetAllConnections retrieves all network connections
 func (s *NetworkService) GetAllConnections() ([]models.NetworkConnection, error) {
 	rows, err := database.DB.Query(`
-		SELECT id, source_device_id, target_device_id, connection_type, port_info, created_at
+		SELECT id, source_device_id, target_device_id, connection_type, port_info, speed, created_at
 		FROM network_connections
 		ORDER BY id
 	`)
@@ -35,7 +35,7 @@ func (s *NetworkService) GetAllConnections() ([]models.NetworkConnection, error)
 		var conn models.NetworkConnection
 		if err := rows.Scan(
 			&conn.ID, &conn.SourceDeviceID, &conn.TargetDeviceID,
-			&conn.ConnectionType, &conn.PortInfo, &conn.CreatedAt,
+			&conn.ConnectionType, &conn.PortInfo, &conn.Speed, &conn.CreatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan connection: %w", err)
 		}
@@ -60,12 +60,12 @@ func (s *NetworkService) GetAllConnections() ([]models.NetworkConnection, error)
 func (s *NetworkService) GetConnectionByID(id int) (*models.NetworkConnection, error) {
 	var conn models.NetworkConnection
 	err := database.DB.QueryRow(`
-		SELECT id, source_device_id, target_device_id, connection_type, port_info, created_at
+		SELECT id, source_device_id, target_device_id, connection_type, port_info, speed, created_at
 		FROM network_connections
 		WHERE id = $1
 	`, id).Scan(
 		&conn.ID, &conn.SourceDeviceID, &conn.TargetDeviceID,
-		&conn.ConnectionType, &conn.PortInfo, &conn.CreatedAt,
+		&conn.ConnectionType, &conn.PortInfo, &conn.Speed, &conn.CreatedAt,
 	)
 
 	if err == sql.ErrNoRows {
@@ -120,12 +120,12 @@ func (s *NetworkService) CreateConnection(req models.CreateConnectionRequest) (*
 
 	var conn models.NetworkConnection
 	err = database.DB.QueryRow(`
-		INSERT INTO network_connections (source_device_id, target_device_id, connection_type, port_info)
-		VALUES ($1, $2, $3, $4)
-		RETURNING id, source_device_id, target_device_id, connection_type, port_info, created_at
-	`, req.SourceDeviceID, req.TargetDeviceID, req.ConnectionType, req.PortInfo).Scan(
+		INSERT INTO network_connections (source_device_id, target_device_id, connection_type, port_info, speed)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING id, source_device_id, target_device_id, connection_type, port_info, speed, created_at
+	`, req.SourceDeviceID, req.TargetDeviceID, req.ConnectionType, req.PortInfo, req.Speed).Scan(
 		&conn.ID, &conn.SourceDeviceID, &conn.TargetDeviceID,
-		&conn.ConnectionType, &conn.PortInfo, &conn.CreatedAt,
+		&conn.ConnectionType, &conn.PortInfo, &conn.Speed, &conn.CreatedAt,
 	)
 
 	if err != nil {

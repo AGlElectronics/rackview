@@ -19,7 +19,7 @@ func NewDeviceService() *DeviceService {
 // GetDevicesByRackID retrieves all devices for a specific rack
 func (s *DeviceService) GetDevicesByRackID(rackID int) ([]models.Device, error) {
 	rows, err := database.DB.Query(`
-		SELECT id, rack_id, name, icon, type, position_u, size_u, status, model, created_at, updated_at
+		SELECT id, rack_id, name, icon, type, position_u, size_u, status, model, ip_address, health_check_url, created_at, updated_at
 		FROM devices
 		WHERE rack_id = $1
 		ORDER BY position_u DESC
@@ -32,12 +32,21 @@ func (s *DeviceService) GetDevicesByRackID(rackID int) ([]models.Device, error) 
 	var devices []models.Device
 	for rows.Next() {
 		var device models.Device
+		var ipAddress, healthCheckURL sql.NullString
 		if err := rows.Scan(
 			&device.ID, &device.RackID, &device.Name, &device.Icon, &device.Type,
 			&device.PositionU, &device.SizeU, &device.Status, &device.Model,
+			&ipAddress, &healthCheckURL,
 			&device.CreatedAt, &device.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan device: %w", err)
+		}
+		// Convert NullString to string
+		if ipAddress.Valid {
+			device.IPAddress = ipAddress.String
+		}
+		if healthCheckURL.Valid {
+			device.HealthCheckURL = healthCheckURL.String
 		}
 
 		// Load specs
@@ -63,7 +72,7 @@ func (s *DeviceService) GetAllDevices(rackID *int) ([]models.Device, error) {
 	}
 
 	rows, err = database.DB.Query(`
-		SELECT id, rack_id, name, icon, type, position_u, size_u, status, model, created_at, updated_at
+		SELECT id, rack_id, name, icon, type, position_u, size_u, status, model, ip_address, health_check_url, created_at, updated_at
 		FROM devices
 		ORDER BY rack_id, position_u DESC
 	`)
@@ -75,12 +84,21 @@ func (s *DeviceService) GetAllDevices(rackID *int) ([]models.Device, error) {
 	var devices []models.Device
 	for rows.Next() {
 		var device models.Device
+		var ipAddress, healthCheckURL sql.NullString
 		if err := rows.Scan(
 			&device.ID, &device.RackID, &device.Name, &device.Icon, &device.Type,
 			&device.PositionU, &device.SizeU, &device.Status, &device.Model,
+			&ipAddress, &healthCheckURL,
 			&device.CreatedAt, &device.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan device: %w", err)
+		}
+		// Convert NullString to string
+		if ipAddress.Valid {
+			device.IPAddress = ipAddress.String
+		}
+		if healthCheckURL.Valid {
+			device.HealthCheckURL = healthCheckURL.String
 		}
 
 		// Load specs
@@ -99,15 +117,25 @@ func (s *DeviceService) GetAllDevices(rackID *int) ([]models.Device, error) {
 // GetDeviceByID retrieves a device by ID
 func (s *DeviceService) GetDeviceByID(id int) (*models.Device, error) {
 	var device models.Device
+	var ipAddress, healthCheckURL sql.NullString
 	err := database.DB.QueryRow(`
-		SELECT id, rack_id, name, icon, type, position_u, size_u, status, model, created_at, updated_at
+		SELECT id, rack_id, name, icon, type, position_u, size_u, status, model, ip_address, health_check_url, created_at, updated_at
 		FROM devices
 		WHERE id = $1
 	`, id).Scan(
 		&device.ID, &device.RackID, &device.Name, &device.Icon, &device.Type,
 		&device.PositionU, &device.SizeU, &device.Status, &device.Model,
+		&ipAddress, &healthCheckURL,
 		&device.CreatedAt, &device.UpdatedAt,
 	)
+	
+	// Convert NullString to string
+	if ipAddress.Valid {
+		device.IPAddress = ipAddress.String
+	}
+	if healthCheckURL.Valid {
+		device.HealthCheckURL = healthCheckURL.String
+	}
 
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("device not found")
@@ -161,12 +189,13 @@ func (s *DeviceService) CreateDevice(req models.CreateDeviceRequest) (*models.De
 
 	var device models.Device
 	err = database.DB.QueryRow(`
-		INSERT INTO devices (rack_id, name, icon, type, position_u, size_u, status, model)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-		RETURNING id, rack_id, name, icon, type, position_u, size_u, status, model, created_at, updated_at
-	`, req.RackID, req.Name, req.Icon, req.Type, req.PositionU, req.SizeU, req.Status, req.Model).Scan(
+		INSERT INTO devices (rack_id, name, icon, type, position_u, size_u, status, model, ip_address, health_check_url)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		RETURNING id, rack_id, name, icon, type, position_u, size_u, status, model, ip_address, health_check_url, created_at, updated_at
+	`, req.RackID, req.Name, req.Icon, req.Type, req.PositionU, req.SizeU, req.Status, req.Model, req.IPAddress, req.HealthCheckURL).Scan(
 		&device.ID, &device.RackID, &device.Name, &device.Icon, &device.Type,
 		&device.PositionU, &device.SizeU, &device.Status, &device.Model,
+		&device.IPAddress, &device.HealthCheckURL,
 		&device.CreatedAt, &device.UpdatedAt,
 	)
 
@@ -233,6 +262,16 @@ func (s *DeviceService) UpdateDevice(id int, req models.UpdateDeviceRequest) (*m
 		args = append(args, *req.Model)
 		argPos++
 	}
+	if req.IPAddress != nil {
+		updates = append(updates, fmt.Sprintf("ip_address = $%d", argPos))
+		args = append(args, *req.IPAddress)
+		argPos++
+	}
+	if req.HealthCheckURL != nil {
+		updates = append(updates, fmt.Sprintf("health_check_url = $%d", argPos))
+		args = append(args, *req.HealthCheckURL)
+		argPos++
+	}
 
 	// Validate position/size if changed
 	if req.PositionU != nil || req.SizeU != nil {
@@ -284,12 +323,13 @@ func (s *DeviceService) UpdateDevice(id int, req models.UpdateDeviceRequest) (*m
 			UPDATE devices
 			SET %s
 			WHERE id = $%d
-			RETURNING id, rack_id, name, icon, type, position_u, size_u, status, model, created_at, updated_at
+			RETURNING id, rack_id, name, icon, type, position_u, size_u, status, model, ip_address, health_check_url, created_at, updated_at
 		`, setClause, argPos)
 
 		err = database.DB.QueryRow(query, args...).Scan(
 			&current.ID, &current.RackID, &current.Name, &current.Icon, &current.Type,
 			&current.PositionU, &current.SizeU, &current.Status, &current.Model,
+			&current.IPAddress, &current.HealthCheckURL,
 			&current.CreatedAt, &current.UpdatedAt,
 		)
 

@@ -4,11 +4,15 @@ import './DeviceDetails.css';
 
 function DeviceDetails({ device, onClose, onUpdate }) {
   const [isEditing, setIsEditing] = useState(false);
+  const [isCheckingHealth, setIsCheckingHealth] = useState(false);
+  const [healthCheckResult, setHealthCheckResult] = useState(null);
   const [formData, setFormData] = useState({
     name: device.name,
     icon: device.icon,
     model: device.model || '',
     status: device.status,
+    ip_address: device.ip_address || '',
+    health_check_url: device.health_check_url || '',
   });
 
   const handleUpdate = async (e) => {
@@ -28,9 +32,29 @@ function DeviceDetails({ device, onClose, onUpdate }) {
     }
     try {
       await deviceAPI.delete(device.id);
+      // Close the details panel and refresh
+      onClose();
       onUpdate();
     } catch (error) {
       alert('Error: ' + (error.response?.data?.error || error.message));
+    }
+  };
+
+  const handleHealthCheck = async () => {
+    setIsCheckingHealth(true);
+    setHealthCheckResult(null);
+    try {
+      const response = await deviceAPI.checkHealth(device.id, true);
+      setHealthCheckResult(response.data);
+      onUpdate(); // Refresh device data to get updated status
+    } catch (error) {
+      setHealthCheckResult({
+        status: 'offline',
+        message: error.response?.data?.error || error.message || 'Health check failed',
+        timestamp: new Date().toISOString(),
+      });
+    } finally {
+      setIsCheckingHealth(false);
     }
   };
 
@@ -86,6 +110,24 @@ function DeviceDetails({ device, onClose, onUpdate }) {
                 <option value="offline">Offline</option>
               </select>
             </div>
+            <div className="form-group">
+              <label>IP Address</label>
+              <input
+                type="text"
+                value={formData.ip_address}
+                onChange={(e) => setFormData({ ...formData, ip_address: e.target.value })}
+                placeholder="192.168.1.100"
+              />
+            </div>
+            <div className="form-group">
+              <label>Health Check URL</label>
+              <input
+                type="text"
+                value={formData.health_check_url}
+                onChange={(e) => setFormData({ ...formData, health_check_url: e.target.value })}
+                placeholder="http://192.168.1.100:8080/health"
+              />
+            </div>
             <div className="form-actions">
               <button type="submit" className="btn-primary">Save</button>
               <button type="button" onClick={() => setIsEditing(false)}>Cancel</button>
@@ -110,7 +152,39 @@ function DeviceDetails({ device, onClose, onUpdate }) {
                 <span className={`status-dot ${statusColor}`}></span>
                 {device.status.toUpperCase()}
               </span>
+              {(device.ip_address || device.health_check_url) && (
+                <button 
+                  className="btn-health-check" 
+                  onClick={handleHealthCheck}
+                  disabled={isCheckingHealth}
+                >
+                  {isCheckingHealth ? 'Checking...' : '🔍 Check Health'}
+                </button>
+              )}
             </div>
+            {healthCheckResult && (
+              <div className={`health-check-result ${healthCheckResult.status}`}>
+                <div className="health-check-status">
+                  <strong>Status:</strong> {healthCheckResult.status.toUpperCase()}
+                </div>
+                <div className="health-check-message">{healthCheckResult.message}</div>
+                {healthCheckResult.latency && (
+                  <div className="health-check-latency">Latency: {healthCheckResult.latency}ms</div>
+                )}
+              </div>
+            )}
+            {device.ip_address && (
+              <div className="spec-row">
+                <span className="spec-label">IP Address</span>
+                <span className="spec-value">{device.ip_address}</span>
+              </div>
+            )}
+            {device.health_check_url && (
+              <div className="spec-row">
+                <span className="spec-label">Health Check URL</span>
+                <span className="spec-value">{device.health_check_url}</span>
+              </div>
+            )}
             <div className="device-actions">
               <button className="btn-edit" onClick={() => setIsEditing(true)}>Edit</button>
               <button className="btn-delete" onClick={handleDelete}>Delete</button>

@@ -1,36 +1,43 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { rackAPI, deviceAPI } from '../services/api';
 import RackRenderer from './RackRenderer';
 import RackManager from './RackManager';
 import DeviceDetails from './DeviceDetails';
+import DeviceForm from './DeviceForm';
 import './RackView.css';
 
 function RackView() {
+  const navigate = useNavigate();
   const [racks, setRacks] = useState([]);
-  const [selectedRackId, setSelectedRackId] = useState(null);
-  const [devices, setDevices] = useState([]);
+  const [devicesByRack, setDevicesByRack] = useState({});
   const [selectedDevice, setSelectedDevice] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showRackManager, setShowRackManager] = useState(false);
+  const [showDeviceForm, setShowDeviceForm] = useState(false);
+  const [deviceFormData, setDeviceFormData] = useState({ rackId: null, positionU: null, device: null });
+  const [selectedRackForAdd, setSelectedRackForAdd] = useState(null);
+  
+  // Drag-to-scroll state
+  const [isDragging, setIsDragging] = useState(false);
+  const [startX, setStartX] = useState(0);
+  const [scrollLeft, setScrollLeft] = useState(0);
 
   useEffect(() => {
     loadRacks();
   }, []);
 
   useEffect(() => {
-    if (selectedRackId) {
-      loadDevices(selectedRackId);
+    if (racks.length > 0) {
+      loadAllDevices();
     }
-  }, [selectedRackId]);
+  }, [racks]);
 
   const loadRacks = async () => {
     try {
       const response = await rackAPI.getAll();
       const racksData = response.data;
       setRacks(racksData);
-      if (racksData.length > 0 && !selectedRackId) {
-        setSelectedRackId(racksData[0].id);
-      }
     } catch (error) {
       console.error('Failed to load racks:', error);
     } finally {
@@ -38,39 +45,53 @@ function RackView() {
     }
   };
 
-  const loadDevices = async (rackId) => {
+  const loadAllDevices = async () => {
     try {
-      const response = await deviceAPI.getAll(rackId);
-      setDevices(response.data);
+      const allDevices = {};
+      for (const rack of racks) {
+        try {
+          const response = await deviceAPI.getAll(rack.id);
+          allDevices[rack.id] = response.data;
+        } catch (error) {
+          console.error(`Failed to load devices for rack ${rack.id}:`, error);
+          allDevices[rack.id] = [];
+        }
+      }
+      setDevicesByRack(allDevices);
     } catch (error) {
       console.error('Failed to load devices:', error);
     }
   };
 
+  const loadDevicesForRack = async (rackId) => {
+    try {
+      const response = await deviceAPI.getAll(rackId);
+      setDevicesByRack(prev => ({ ...prev, [rackId]: response.data }));
+    } catch (error) {
+      console.error(`Failed to load devices for rack ${rackId}:`, error);
+    }
+  };
+
   const handleRackCreated = (newRack) => {
-    setRacks([...racks, newRack]);
-    setSelectedRackId(newRack.id);
+    setRacks(prevRacks => [...prevRacks, newRack]);
+    setDevicesByRack(prev => ({ ...prev, [newRack.id]: [] }));
     setShowRackManager(false);
+    loadDevicesForRack(newRack.id);
   };
 
   const handleRackUpdated = (updatedRack) => {
-    setRacks(racks.map(r => r.id === updatedRack.id ? updatedRack : r));
-    if (updatedRack.id === selectedRackId) {
-      loadDevices(updatedRack.id);
-    }
+    setRacks(prevRacks => prevRacks.map(r => r.id === updatedRack.id ? updatedRack : r));
     setShowRackManager(false);
+    loadDevicesForRack(updatedRack.id);
   };
 
   const handleRackDeleted = (rackId) => {
-    setRacks(racks.filter(r => r.id !== rackId));
-    if (selectedRackId === rackId) {
-      if (racks.length > 1) {
-        const newSelected = racks.find(r => r.id !== rackId);
-        setSelectedRackId(newSelected ? newSelected.id : null);
-      } else {
-        setSelectedRackId(null);
-      }
-    }
+    setRacks(prevRacks => prevRacks.filter(r => r.id !== rackId));
+    setDevicesByRack(prev => {
+      const newDevices = { ...prev };
+      delete newDevices[rackId];
+      return newDevices;
+    });
     setShowRackManager(false);
   };
 
@@ -79,13 +100,80 @@ function RackView() {
   };
 
   const handleDeviceUpdated = () => {
-    if (selectedRackId) {
-      loadDevices(selectedRackId);
-    }
+    // Reload all devices to ensure UI is in sync
+    loadAllDevices();
     setSelectedDevice(null);
   };
 
-  const selectedRack = racks.find(r => r.id === selectedRackId);
+  const handleEmptySlotClick = (rackId, positionU) => {
+    setSelectedRackForAdd(rackId);
+    setDeviceFormData({ rackId, positionU, device: null });
+    setShowDeviceForm(true);
+  };
+
+  const handleDeviceCreated = (newDevice) => {
+    loadDevicesForRack(newDevice.rack_id);
+    setShowDeviceForm(false);
+    setDeviceFormData({ rackId: null, positionU: null, device: null });
+  };
+
+  const handleDeviceMove = async (deviceId, newRackId, newPositionU) => {
+    try {
+      const device = Object.values(devicesByRack).flat().find(d => d.id === deviceId);
+      if (!device) return;
+
+      const updateData = { position_u: newPositionU };
+      // If moving to a different rack, update rack_id
+      if (newRackId !== device.rack_id) {
+        updateData.rack_id = newRackId;
+      }
+
+      await deviceAPI.update(deviceId, updateData);
+      
+      // Reload devices for both old and new racks
+      loadDevicesForRack(device.rack_id);
+      if (newRackId !== device.rack_id) {
+        loadDevicesForRack(newRackId);
+      }
+    } catch (error) {
+      alert('Error moving device: ' + (error.response?.data?.error || error.message));
+    }
+  };
+
+  // Drag-to-scroll handlers
+  const handleMouseDown = (e) => {
+    // Don't start drag if clicking on interactive elements (buttons, devices, etc.)
+    if (e.target.closest('button') || 
+        e.target.closest('.rack-unit') || 
+        e.target.closest('.u-empty') ||
+        e.target.closest('.rack-frame') ||
+        e.target.closest('.rack-column')) {
+      return;
+    }
+    setIsDragging(true);
+    const container = e.currentTarget;
+    setStartX(e.pageX - container.offsetLeft);
+    setScrollLeft(container.scrollLeft);
+    container.style.cursor = 'grabbing';
+    e.preventDefault();
+  };
+
+  const handleMouseMove = (e) => {
+    if (!isDragging) return;
+    e.preventDefault();
+    const container = e.currentTarget;
+    const x = e.pageX - container.offsetLeft;
+    const walk = (x - startX) * 2; // Scroll speed multiplier
+    container.scrollLeft = scrollLeft - walk;
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  const handleMouseLeave = () => {
+    setIsDragging(false);
+  };
 
   if (loading) {
     return <div className="rack-view loading">Loading...</div>;
@@ -96,17 +184,14 @@ function RackView() {
       <div className="page-header">
         <h1>Infrastructure Racks</h1>
         <div className="rack-controls">
-          <select
-            value={selectedRackId || ''}
-            onChange={(e) => setSelectedRackId(parseInt(e.target.value))}
-            className="rack-selector"
+          <button
+            className="btn-network-map"
+            onClick={() => navigate('/network-map')}
+            title="View Network Topology"
           >
-            {racks.map(rack => (
-              <option key={rack.id} value={rack.id}>
-                {rack.name} ({rack.size_u}U)
-              </option>
-            ))}
-          </select>
+            <span className="btn-icon">🗺️</span>
+            <span>Network Map</span>
+          </button>
           <button
             className="btn-add-rack"
             onClick={() => setShowRackManager(true)}
@@ -116,33 +201,48 @@ function RackView() {
         </div>
       </div>
 
-      <div className="main-layout">
-        {selectedRack && (
-          <div className="racks-container">
-            <RackRenderer
-              rack={selectedRack}
-              devices={devices}
-              onDeviceSelect={handleDeviceSelect}
-              selectedDeviceId={selectedDevice?.id}
-            />
-          </div>
-        )}
+      <div className={`main-layout ${selectedDevice ? 'with-info-panel' : ''}`}>
+        <div 
+          className={`racks-container ${isDragging ? 'dragging' : ''}`}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseLeave}
+        >
+          {racks.length === 0 ? (
+            <div className="no-racks">
+              <p>No racks configured yet.</p>
+              <button className="btn-add-rack" onClick={() => setShowRackManager(true)}>
+                + Add Your First Rack
+              </button>
+            </div>
+          ) : (
+            racks.map(rack => (
+              <RackRenderer
+                key={rack.id}
+                rack={rack}
+                devices={devicesByRack[rack.id] || []}
+                onDeviceSelect={handleDeviceSelect}
+                selectedDeviceId={selectedDevice?.id}
+                onEmptySlotClick={handleEmptySlotClick}
+                onDeviceMove={handleDeviceMove}
+                isSelectedForAdd={selectedRackForAdd === rack.id}
+                allRacks={racks}
+                allDevices={Object.values(devicesByRack).flat()}
+              />
+            ))
+          )}
+        </div>
 
-        <div className="info-panel">
-          {selectedDevice ? (
+        {selectedDevice && (
+          <div className="info-panel">
             <DeviceDetails
               device={selectedDevice}
               onClose={() => setSelectedDevice(null)}
               onUpdate={handleDeviceUpdated}
             />
-          ) : (
-            <div className="info-placeholder">
-              <div className="info-placeholder-icon">🖱️</div>
-              <h3>Select a Device</h3>
-              <p>Click any device to view specifications</p>
-            </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {showRackManager && (
@@ -152,6 +252,20 @@ function RackView() {
           onRackCreated={handleRackCreated}
           onRackUpdated={handleRackUpdated}
           onRackDeleted={handleRackDeleted}
+        />
+      )}
+
+      {showDeviceForm && (
+        <DeviceForm
+          rackId={deviceFormData.rackId}
+          positionU={deviceFormData.positionU}
+          device={deviceFormData.device}
+          onClose={() => {
+            setShowDeviceForm(false);
+            setDeviceFormData({ rackId: null, positionU: null, device: null });
+            setSelectedRackForAdd(null);
+          }}
+          onSave={handleDeviceCreated}
         />
       )}
     </div>

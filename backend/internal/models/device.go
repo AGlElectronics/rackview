@@ -22,18 +22,20 @@ const (
 
 // Device represents a device in a rack
 type Device struct {
-	ID         int                    `json:"id" db:"id"`
-	RackID     int                    `json:"rack_id" db:"rack_id"`
-	Name       string                 `json:"name" db:"name"`
-	Icon       string                 `json:"icon" db:"icon"`
-	Type       DeviceType             `json:"type" db:"type"`
-	PositionU  int                    `json:"position_u" db:"position_u"`
-	SizeU      int                    `json:"size_u" db:"size_u"`
-	Status     DeviceStatus           `json:"status" db:"status"`
-	Model      string                 `json:"model" db:"model"`
-	CreatedAt  time.Time              `json:"created_at" db:"created_at"`
-	UpdatedAt  time.Time              `json:"updated_at" db:"updated_at"`
-	Specs      map[string]string      `json:"specs,omitempty"`
+	ID             int                    `json:"id" db:"id"`
+	RackID         int                    `json:"rack_id" db:"rack_id"`
+	Name           string                 `json:"name" db:"name"`
+	Icon           string                 `json:"icon" db:"icon"`
+	Type           DeviceType             `json:"type" db:"type"`
+	PositionU      int                    `json:"position_u" db:"position_u"`
+	SizeU          int                    `json:"size_u" db:"size_u"`
+	Status         DeviceStatus           `json:"status" db:"status"`
+	Model          string                 `json:"model" db:"model"`
+	IPAddress      string                 `json:"ip_address" db:"ip_address"`
+	HealthCheckURL string                 `json:"health_check_url" db:"health_check_url"`
+	CreatedAt      time.Time              `json:"created_at" db:"created_at"`
+	UpdatedAt      time.Time              `json:"updated_at" db:"updated_at"`
+	Specs          map[string]string      `json:"specs,omitempty"`
 }
 
 // DeviceSpec represents a device specification
@@ -47,25 +49,29 @@ type DeviceSpec struct {
 
 // CreateDeviceRequest represents a request to create a new device
 type CreateDeviceRequest struct {
-	RackID    int         `json:"rack_id" binding:"required"`
-	Name      string      `json:"name" binding:"required"`
-	Icon      string      `json:"icon"`
-	Type      DeviceType  `json:"type" binding:"required,oneof=server network storage"`
-	PositionU int         `json:"position_u" binding:"required,min=1"`
-	SizeU     int         `json:"size_u" binding:"required,min=1"`
-	Status    DeviceStatus `json:"status" binding:"oneof=online offline warning"`
-	Model     string      `json:"model"`
-	Specs     map[string]string `json:"specs"`
+	RackID         int         `json:"rack_id" binding:"required"`
+	Name           string      `json:"name" binding:"required"`
+	Icon           string      `json:"icon"`
+	Type           DeviceType  `json:"type" binding:"required,oneof=server network storage"`
+	PositionU      int         `json:"position_u" binding:"required,min=1"`
+	SizeU          int         `json:"size_u" binding:"required,min=1"`
+	Status         DeviceStatus `json:"status" binding:"oneof=online offline warning"`
+	Model          string      `json:"model"`
+	IPAddress      string      `json:"ip_address"`
+	HealthCheckURL string      `json:"health_check_url"`
+	Specs          map[string]string `json:"specs"`
 }
 
 // UpdateDeviceRequest represents a request to update a device
 type UpdateDeviceRequest struct {
-	Name      *string      `json:"name"`
-	Icon      *string      `json:"icon"`
-	Type      *DeviceType  `json:"type"`
-	PositionU *int         `json:"position_u"`
-	SizeU     *int         `json:"size_u"`
-	Status    *DeviceStatus `json:"status"`
-	Model     *string      `json:"model"`
-	Specs     map[string]string `json:"specs"`
+	Name           *string      `json:"name"`
+	Icon           *string      `json:"icon"`
+	Type           *DeviceType  `json:"type"`
+	PositionU      *int         `json:"position_u"`
+	SizeU          *int         `json:"size_u"`
+	Status         *DeviceStatus `json:"status"`
+	Model          *string      `json:"model"`
+	IPAddress      *string      `json:"ip_address"`
+	HealthCheckURL *string      `json:"health_check_url"`
+	Specs          map[string]string `json:"specs"`
 }

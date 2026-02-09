@@ -11,13 +11,15 @@ import (
 
 // DeviceHandler handles device-related HTTP requests
 type DeviceHandler struct {
-	service *services.DeviceService
+	service      *services.DeviceService
+	healthService *services.HealthService
 }
 
 // NewDeviceHandler creates a new device handler
 func NewDeviceHandler() *DeviceHandler {
 	return &DeviceHandler{
-		service: services.NewDeviceService(),
+		service:       services.NewDeviceService(),
+		healthService: services.NewHealthService(),
 	}
 }
 
@@ -111,4 +113,30 @@ func (h *DeviceHandler) DeleteDevice(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "device deleted successfully"})
+}
+
+// CheckDeviceHealth handles POST /api/devices/:id/health-check
+func (h *DeviceHandler) CheckDeviceHealth(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid device ID"})
+		return
+	}
+
+	result, err := h.healthService.CheckDeviceHealth(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Optionally update device status based on health check
+	updateStatus := c.Query("update_status") == "true"
+	if updateStatus {
+		if err := h.healthService.UpdateDeviceStatusFromHealthCheck(id, result); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	}
+
+	c.JSON(http.StatusOK, result)
 }

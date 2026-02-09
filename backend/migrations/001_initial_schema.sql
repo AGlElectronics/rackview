@@ -22,10 +22,7 @@ CREATE TABLE IF NOT EXISTS devices (
     status VARCHAR(50) DEFAULT 'online' CHECK (status IN ('online', 'offline', 'warning')),
     model VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT device_fits_in_rack CHECK (
-        position_u + size_u - 1 <= (SELECT size_u FROM racks WHERE id = rack_id)
-    )
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Device specs table (key-value pairs for flexible specifications)
@@ -65,9 +62,11 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
--- Triggers to auto-update updated_at
+-- Triggers to auto-update updated_at (drop if exists first to make idempotent)
+DROP TRIGGER IF EXISTS update_racks_updated_at ON racks;
 CREATE TRIGGER update_racks_updated_at BEFORE UPDATE ON racks
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_devices_updated_at ON devices;
 CREATE TRIGGER update_devices_updated_at BEFORE UPDATE ON devices
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

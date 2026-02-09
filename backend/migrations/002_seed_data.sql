@@ -35,54 +35,54 @@ ON CONFLICT DO NOTHING;
 -- Insert device specs
 -- Atlas 01 specs
 INSERT INTO device_specs (device_id, spec_key, spec_value) VALUES
-((SELECT id FROM devices WHERE name = 'Atlas 01' AND rack_id = 1), 'CPU', '2x Xeon Gold 6148'),
-((SELECT id FROM devices WHERE name = 'Atlas 01' AND rack_id = 1), 'Memory', '512GB DDR4'),
-((SELECT id FROM devices WHERE name = 'Atlas 01' AND rack_id = 1), 'Storage', '2× 1TB NVMe')
+((SELECT id FROM devices WHERE name = 'Atlas 01' AND rack_id = 1 LIMIT 1), 'CPU', '2x Xeon Gold 6148'),
+((SELECT id FROM devices WHERE name = 'Atlas 01' AND rack_id = 1 LIMIT 1), 'Memory', '512GB DDR4'),
+((SELECT id FROM devices WHERE name = 'Atlas 01' AND rack_id = 1 LIMIT 1), 'Storage', '2× 1TB NVMe')
 ON CONFLICT DO NOTHING;
 
 -- TrueNAS specs
 INSERT INTO device_specs (device_id, spec_key, spec_value) VALUES
-((SELECT id FROM devices WHERE name = 'TrueNAS' AND rack_id = 1), 'CPU', '2x Xeon Gold'),
-((SELECT id FROM devices WHERE name = 'TrueNAS' AND rack_id = 1), 'Memory', '64GB'),
-((SELECT id FROM devices WHERE name = 'TrueNAS' AND rack_id = 1), 'Network', '10GbE')
+((SELECT id FROM devices WHERE name = 'TrueNAS' AND rack_id = 1 LIMIT 1), 'CPU', '2x Xeon Gold'),
+((SELECT id FROM devices WHERE name = 'TrueNAS' AND rack_id = 1 LIMIT 1), 'Memory', '64GB'),
+((SELECT id FROM devices WHERE name = 'TrueNAS' AND rack_id = 1 LIMIT 1), 'Network', '10GbE')
 ON CONFLICT DO NOTHING;
 
 -- JBOD specs
 INSERT INTO device_specs (device_id, spec_key, spec_value) VALUES
-((SELECT id FROM devices WHERE name = 'JBOD 12x3.5' AND rack_id = 1), 'Storage', '12x6TB HDD'),
-((SELECT id FROM devices WHERE name = 'JBOD 24x2.5' AND rack_id = 1 AND position_u = 14), 'Storage', '16x600GB'),
-((SELECT id FROM devices WHERE name = 'JBOD 24x2.5' AND rack_id = 1 AND position_u = 12), 'Storage', '24x600GB HDD')
+((SELECT id FROM devices WHERE name = 'JBOD 12x3.5' AND rack_id = 1 LIMIT 1), 'Storage', '12x6TB HDD'),
+((SELECT id FROM devices WHERE name = 'JBOD 24x2.5' AND rack_id = 1 AND position_u = 14 LIMIT 1), 'Storage', '16x600GB'),
+((SELECT id FROM devices WHERE name = 'JBOD 24x2.5' AND rack_id = 1 AND position_u = 12 LIMIT 1), 'Storage', '24x600GB HDD')
 ON CONFLICT DO NOTHING;
 
 -- HP BladeCenter specs
 INSERT INTO device_specs (device_id, spec_key, spec_value) VALUES
-((SELECT id FROM devices WHERE name = 'HP BladeCenter' AND rack_id = 1), 'Blades 1', '1x HP BL460 G10'),
-((SELECT id FROM devices WHERE name = 'HP BladeCenter' AND rack_id = 1), 'Blades 2', '6x HP BL460 G19'),
-((SELECT id FROM devices WHERE name = 'HP BladeCenter' AND rack_id = 1), 'Blades 3', '1x HP BL460 G8'),
-((SELECT id FROM devices WHERE name = 'HP BladeCenter' AND rack_id = 1), 'Switches', '2x Virtual Connect'),
-((SELECT id FROM devices WHERE name = 'HP BladeCenter' AND rack_id = 1), 'PSU', '6x 2400W')
+((SELECT id FROM devices WHERE name = 'HP BladeCenter' AND rack_id = 1 LIMIT 1), 'Blades 1', '1x HP BL460 G10'),
+((SELECT id FROM devices WHERE name = 'HP BladeCenter' AND rack_id = 1 LIMIT 1), 'Blades 2', '6x HP BL460 G19'),
+((SELECT id FROM devices WHERE name = 'HP BladeCenter' AND rack_id = 1 LIMIT 1), 'Blades 3', '1x HP BL460 G8'),
+((SELECT id FROM devices WHERE name = 'HP BladeCenter' AND rack_id = 1 LIMIT 1), 'Switches', '2x Virtual Connect'),
+((SELECT id FROM devices WHERE name = 'HP BladeCenter' AND rack_id = 1 LIMIT 1), 'PSU', '6x 2400W')
 ON CONFLICT DO NOTHING;
 
 -- Router specs
 INSERT INTO device_specs (device_id, spec_key, spec_value) VALUES
-((SELECT id FROM devices WHERE name = 'Router' AND rack_id = 2), 'WAN', '1GBe SFP'),
-((SELECT id FROM devices WHERE name = 'Router' AND rack_id = 2), 'LAN', '10GBe SFP +')
+((SELECT id FROM devices WHERE name = 'Router' AND rack_id = 2 LIMIT 1), 'WAN', '1GBe SFP'),
+((SELECT id FROM devices WHERE name = 'Router' AND rack_id = 2 LIMIT 1), 'LAN', '10GBe SFP +')
 ON CONFLICT DO NOTHING;
 
 -- Core Switch specs
 INSERT INTO device_specs (device_id, spec_key, spec_value) VALUES
-((SELECT id FROM devices WHERE name = 'Core Switch' AND rack_id = 2), 'Ports', '48× SFP+ + 4× QSFP')
+((SELECT id FROM devices WHERE name = 'Core Switch' AND rack_id = 2 LIMIT 1), 'Ports', '48× SFP+ + 4× QSFP')
 ON CONFLICT DO NOTHING;
 
 -- RJ45 PoE Switch specs
 INSERT INTO device_specs (device_id, spec_key, spec_value) VALUES
-((SELECT id FROM devices WHERE name = 'RJ45 PoE Switch' AND rack_id = 2), 'Ports', '24× GbE POE + 4× SFP+')
+((SELECT id FROM devices WHERE name = 'RJ45 PoE Switch' AND rack_id = 2 LIMIT 1), 'Ports', '24× GbE POE + 4× SFP+')
 ON CONFLICT DO NOTHING;
 
 -- UPS specs
 INSERT INTO device_specs (device_id, spec_key, spec_value) VALUES
-((SELECT id FROM devices WHERE name = 'UPS System' AND rack_id = 2 AND position_u = 10), 'Capacity', '2700W'),
-((SELECT id FROM devices WHERE name = 'UPS System' AND rack_id = 2 AND position_u = 10), 'Runtime', '~45 min'),
-((SELECT id FROM devices WHERE name = 'UPS System' AND rack_id = 2 AND position_u = 4), 'Capacity', '2700W'),
-((SELECT id FROM devices WHERE name = 'UPS System' AND rack_id = 2 AND position_u = 4), 'Runtime', '~45 min')
+((SELECT id FROM devices WHERE name = 'UPS System' AND rack_id = 2 AND position_u = 10 LIMIT 1), 'Capacity', '2700W'),
+((SELECT id FROM devices WHERE name = 'UPS System' AND rack_id = 2 AND position_u = 10 LIMIT 1), 'Runtime', '~45 min'),
+((SELECT id FROM devices WHERE name = 'UPS System' AND rack_id = 2 AND position_u = 4 LIMIT 1), 'Capacity', '2700W'),
+((SELECT id FROM devices WHERE name = 'UPS System' AND rack_id = 2 AND position_u = 4 LIMIT 1), 'Runtime', '~45 min')
 ON CONFLICT DO NOTHING;

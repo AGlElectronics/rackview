@@ -44,6 +44,7 @@ func SetupRoutes(staticPath, indexPath string) *gin.Engine {
 			devices.POST("", deviceHandler.CreateDevice)
 			devices.PUT("/:id", deviceHandler.UpdateDevice)
 			devices.DELETE("/:id", deviceHandler.DeleteDevice)
+			devices.POST("/:id/health-check", deviceHandler.CheckDeviceHealth)
 		}
 
 		// Network routes
@@ -61,7 +62,6 @@ func SetupRoutes(staticPath, indexPath string) *gin.Engine {
 
 	// Static files
 	router.Static("/static", staticPath+"/static")
-	router.GET("/static/*filepath", staticHandler.ServeStatic)
 
 	// Serve React app for all other routes (client-side routing)
 	router.NoRoute(staticHandler.ServeIndex)
