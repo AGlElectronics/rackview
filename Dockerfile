@@ -20,7 +20,7 @@ RUN go mod download || true
 COPY backend/internal/ ./internal/
 COPY backend/cmd/ ./cmd/
 COPY backend/go.mod backend/go.sum ./
-COPY backend/migrations/ ./migrations/
+COPY backend/migrations/ ./internal/database/migrations/
 
 RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags='-w -s' \
@@ -41,7 +41,6 @@ RUN addgroup -g 1000 appuser && \
 WORKDIR /app
 
 COPY --from=backend-builder /app/server ./server
-COPY --from=backend-builder /app/migrations ./migrations
 COPY --from=frontend-builder /app/dist ./frontend/dist
 
 RUN chown -R appuser:appuser /app
