@@ -102,6 +102,7 @@
   display: flex;
   flex-direction: column-reverse; /* U1 at bottom, U25 at top */
   align-items: stretch;
+  overflow: hidden; /* Prevent overlay from expanding rack */
 }
 
 .rack-frame.drag-active {
@@ -137,6 +138,8 @@
   height: var(--unit-height);
   line-height: var(--unit-height);
   opacity: 1; /* Always fully visible */
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 .u-label.left {

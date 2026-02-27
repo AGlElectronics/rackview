@@ -233,6 +233,11 @@ func (s *DeviceService) UpdateDevice(id int, req models.UpdateDeviceRequest) (*m
 	args := []interface{}{}
 	argPos := 1
 
+	if req.RackID != nil {
+		updates = append(updates, fmt.Sprintf("rack_id = $%d", argPos))
+		args = append(args, *req.RackID)
+		argPos++
+	}
 	if req.Name != nil {
 		updates = append(updates, fmt.Sprintf("name = $%d", argPos))
 		args = append(args, *req.Name)
@@ -279,8 +284,14 @@ func (s *DeviceService) UpdateDevice(id int, req models.UpdateDeviceRequest) (*m
 		argPos++
 	}
 
+	// Determine which rack to use for validation (new rack if changing, otherwise current)
+	targetRackID := current.RackID
+	if req.RackID != nil {
+		targetRackID = *req.RackID
+	}
+
 	// Validate position/size if changed
-	if req.PositionU != nil || req.SizeU != nil {
+	if req.PositionU != nil || req.SizeU != nil || req.RackID != nil {
 		positionU := current.PositionU
 		sizeU := current.SizeU
 		if req.PositionU != nil {
@@ -290,9 +301,9 @@ func (s *DeviceService) UpdateDevice(id int, req models.UpdateDeviceRequest) (*m
 			sizeU = *req.SizeU
 		}
 
-		// Check rack size
+		// Check rack size using the target rack (new rack if moving, otherwise current)
 		var rackSize int
-		err := database.DB.QueryRow("SELECT size_u FROM racks WHERE id = $1", current.RackID).Scan(&rackSize)
+		err := database.DB.QueryRow("SELECT size_u FROM racks WHERE id = $1", targetRackID).Scan(&rackSize)
 		if err != nil {
 			return nil, fmt.Errorf("failed to query rack: %w", err)
 		}
@@ -307,8 +318,8 @@ func (s *DeviceService) UpdateDevice(id int, req models.UpdateDeviceRequest) (*m
 			return nil, fmt.Errorf("device does not fit in rack (position %d exceeds rack size %d)", positionU, rackSize)
 		}
 
-		// Check overlaps
-		overlaps, err := s.checkDeviceOverlap(current.RackID, positionU, sizeU, &id)
+		// Check overlaps in the TARGET rack (new rack if moving, otherwise current)
+		overlaps, err := s.checkDeviceOverlap(targetRackID, positionU, sizeU, &id)
 		if err != nil {
 			return nil, fmt.Errorf("failed to check overlaps: %w", err)
 		}

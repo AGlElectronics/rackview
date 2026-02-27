@@ -6,6 +6,8 @@ const UNIT_HEIGHT = 34; // px per U
 function RackRenderer({ rack, devices, onDeviceSelect, selectedDeviceId, onEmptySlotClick, onDeviceMove, isSelectedForAdd, allRacks, allDevices }) {
   const [draggedDevice, setDraggedDevice] = useState(null);
   const [hoveredSlot, setHoveredSlot] = useState(null);
+  const [dragOverU, setDragOverU] = useState(null);
+  const [dragPreview, setDragPreview] = useState(null);
   // Use ref to persist drag state across re-renders
   const draggedDeviceRef = useRef(null);
 
@@ -37,12 +39,30 @@ function RackRenderer({ rack, devices, onDeviceSelect, selectedDeviceId, onEmpty
   };
 
   const renderEmptySlot = (uNum) => {
+    // Check if this slot is occupied by the device being dragged
+    const currentDraggedDevice = draggedDeviceRef.current || draggedDevice;
+    let isOccupiedByDraggedDevice = false;
+    if (currentDraggedDevice) {
+      const draggedDeviceObj = allDevices ? allDevices.find(d => d.id === currentDraggedDevice) : devices.find(d => d.id === currentDraggedDevice);
+      if (draggedDeviceObj && draggedDeviceObj.rack_id === rack.id) {
+        const deviceTopU = draggedDeviceObj.position_u;
+        const deviceBottomU = draggedDeviceObj.position_u - draggedDeviceObj.size_u + 1;
+        // Check if this U slot is within the dragged device's range
+        isOccupiedByDraggedDevice = uNum <= deviceTopU && uNum >= deviceBottomU;
+      }
+    }
+    
     const isHovered = hoveredSlot === uNum && !draggedDevice;
     const isSelected = isSelectedForAdd && isHovered;
     
-    // Disable visual feedback during drag to prevent UI flickering
+    // Don't highlight individual slots - we'll use the overlay box instead
     const isPartOfDropZone = false;
     const isValidDrop = false;
+    
+    // Hide empty slots that are occupied by the dragged device to prevent ghosting
+    if (isOccupiedByDraggedDevice) {
+      return null;
+    }
     
     return (
       <div 
@@ -58,10 +78,31 @@ function RackRenderer({ rack, devices, onDeviceSelect, selectedDeviceId, onEmpty
         onDragOver={(e) => {
           e.preventDefault();
           e.stopPropagation();
-          // Don't update state during drag to prevent UI flickering
+          
+          // Update drag preview for visual feedback
+          const currentDraggedDevice = draggedDeviceRef.current || draggedDevice;
+          if (currentDraggedDevice) {
+            setDragOverU(uNum);
+            const device = allDevices ? allDevices.find(d => d.id === currentDraggedDevice) : devices.find(d => d.id === currentDraggedDevice);
+            if (device) {
+              const isValid = isValidDropPosition(uNum, device.size_u, currentDraggedDevice);
+              setDragPreview({
+                topU: uNum,
+                bottomU: uNum - device.size_u + 1,
+                sizeU: device.size_u,
+                isValid: isValid,
+              });
+            }
+          }
         }}
         onDragLeave={(e) => {
-          // Don't update state during drag to prevent UI flickering
+          // Only clear if we're actually leaving the slot (not entering a child)
+          if (!e.currentTarget.contains(e.relatedTarget)) {
+            if (dragOverU === uNum) {
+              setDragOverU(null);
+              setDragPreview(null);
+            }
+          }
           e.preventDefault();
           e.stopPropagation();
         }}
@@ -262,10 +303,15 @@ function RackRenderer({ rack, devices, onDeviceSelect, selectedDeviceId, onEmpty
   };
 
   // Sort devices by position (highest first, so U25 is first)
-  const sortedDevices = [...devices].sort((a, b) => b.position_u - a.position_u);
+  // Filter out the dragged device so its slots are rendered as empty (then we'll hide those empty slots)
+  const currentDraggedDevice = draggedDeviceRef.current || draggedDevice;
+  const devicesForSlotBuilding = currentDraggedDevice 
+    ? devices.filter(d => d.id !== currentDraggedDevice)
+    : devices;
+  const sortedDevices = [...devicesForSlotBuilding].sort((a, b) => b.position_u - a.position_u);
 
   // Build rack slots from top (U25) to bottom (U1)
-  // We'll reverse the array later so U1 appears at bottom visually
+  // We'll reverse the array so U1 is first, then column-reverse CSS will put U1 at bottom
   const slots = [];
   let currentU = rack.size_u;
 
@@ -283,6 +329,26 @@ function RackRenderer({ rack, devices, onDeviceSelect, selectedDeviceId, onEmpty
     slots.push(renderDevice(device));
     currentU = deviceBottomU - 1;
   });
+  
+  // If a device is being dragged, we need to render it separately (but hidden)
+  // and ensure its slots are rendered as empty (then hidden by renderEmptySlot)
+  if (currentDraggedDevice) {
+    const draggedDeviceObj = devices.find(d => d.id === currentDraggedDevice);
+    if (draggedDeviceObj && draggedDeviceObj.rack_id === rack.id) {
+      const deviceTopU = draggedDeviceObj.position_u;
+      const deviceBottomU = draggedDeviceObj.position_u - draggedDeviceObj.size_u + 1;
+      
+      // Fill empty slots above the dragged device
+      while (currentU > deviceTopU) {
+        slots.push(renderEmptySlot(currentU));
+        currentU--;
+      }
+      
+      // Render the dragged device (it will be hidden with opacity: 0)
+      slots.push(renderDevice(draggedDeviceObj));
+      currentU = deviceBottomU - 1;
+    }
+  }
 
   // Fill remaining slots down to U1
   while (currentU >= 1) {
@@ -290,20 +356,14 @@ function RackRenderer({ rack, devices, onDeviceSelect, selectedDeviceId, onEmpty
     currentU--;
   }
 
-  // Reverse slots so U1 is at bottom, U25 at top (for bottom-anchored display)
+  // Reverse slots so U1 is first in array
+  // With column-reverse CSS, first item (U1) appears at bottom, last item (U25) at top
   const reversedSlots = [...slots].reverse();
 
-  const isDragOverRack = draggedDevice && dragOverU !== null;
-  
   return (
-    <div className={`rack-column ${isSelectedForAdd ? 'selected-for-add' : ''} ${isDragOverRack ? 'drag-over' : ''}`}>
+    <div className={`rack-column ${isSelectedForAdd ? 'selected-for-add' : ''}`}>
       <div className="rack-title">
         {rack.name} • {rack.size_u}U
-        {isDragOverRack && dragPreview && (
-          <span className={`drag-status ${dragPreview.isValid ? 'valid' : 'invalid'}`}>
-            {dragPreview.isValid ? '✓ Valid drop' : '✗ Invalid'}
-          </span>
-        )}
       </div>
       <div
         className={`rack-frame ${draggedDevice ? 'drag-active' : ''}`}
@@ -313,14 +373,38 @@ function RackRenderer({ rack, devices, onDeviceSelect, selectedDeviceId, onEmpty
         onDragOver={(e) => {
           e.preventDefault();
           e.stopPropagation();
-          // Allow drag over for cross-rack dragging
+          
+          // Update drag preview for cross-rack dragging
+          const currentDraggedDevice = draggedDeviceRef.current || draggedDevice;
+          if (currentDraggedDevice) {
+            // Calculate which U slot the mouse is over based on position
+            const rect = e.currentTarget.getBoundingClientRect();
+            const y = e.clientY - rect.bottom; // Distance from bottom
+            const uNum = Math.max(1, Math.min(rack.size_u, Math.floor((rect.height - y) / UNIT_HEIGHT) + 1));
+            
+            setDragOverU(uNum);
+            const device = allDevices ? allDevices.find(d => d.id === currentDraggedDevice) : devices.find(d => d.id === currentDraggedDevice);
+            if (device) {
+              const isValid = isValidDropPosition(uNum, device.size_u, currentDraggedDevice);
+              setDragPreview({
+                topU: uNum,
+                bottomU: uNum - device.size_u + 1,
+                sizeU: device.size_u,
+                isValid: isValid,
+              });
+            }
+          }
         }}
         onDragEnter={(e) => {
           e.preventDefault();
           e.stopPropagation();
         }}
         onDragLeave={(e) => {
-          // Don't update state during drag to prevent UI flickering
+          // Only clear if we're actually leaving the rack frame
+          if (!e.currentTarget.contains(e.relatedTarget)) {
+            setDragOverU(null);
+            setDragPreview(null);
+          }
           e.preventDefault();
           e.stopPropagation();
         }}
@@ -328,11 +412,84 @@ function RackRenderer({ rack, devices, onDeviceSelect, selectedDeviceId, onEmpty
           // Handle drop at rack frame level for cross-rack moves
           e.preventDefault();
           e.stopPropagation();
+          
+          // Read device ID from dataTransfer
+          let deviceId = null;
+          try {
+            const data = e.dataTransfer.getData('text/plain');
+            if (data) {
+              deviceId = parseInt(data);
+            }
+          } catch (err) {
+            console.warn('Could not read drag data:', err);
+          }
+          
+          // Fall back to ref, then state if dataTransfer didn't work
+          if (!deviceId && draggedDeviceRef.current) {
+            deviceId = draggedDeviceRef.current;
+          } else if (!deviceId && draggedDevice) {
+            deviceId = draggedDevice;
+          }
+          
+          if (deviceId && onDeviceMove) {
+            const device = allDevices ? allDevices.find(d => d.id === deviceId) : devices.find(d => d.id === deviceId);
+            if (device) {
+              // Use the drag preview position if available, otherwise find first available
+              let targetU = null;
+              if (dragPreview && dragPreview.isValid) {
+                targetU = dragPreview.topU;
+              } else {
+                // Find the first available position in this rack (top slot that fits)
+                let searchU = rack.size_u;
+                while (searchU >= device.size_u) {
+                  const isValid = isValidDropPosition(searchU, device.size_u, deviceId);
+                  if (isValid) {
+                    targetU = searchU;
+                    break;
+                  }
+                  searchU--;
+                }
+              }
+              
+              if (targetU) {
+                onDeviceMove(deviceId, rack.id, targetU);
+              } else {
+                console.warn('No valid position found in rack', rack.id, 'for device', deviceId);
+              }
+            }
+          }
+          
+          // Clear drag state and ref
+          draggedDeviceRef.current = null;
+          setDraggedDevice(null);
+          setDragOverU(null);
+          setDragPreview(null);
         }}
       >
         <div className="rail left"></div>
         <div className="rail right"></div>
         {reversedSlots}
+        {dragPreview && (draggedDeviceRef.current || draggedDevice) && (
+          <div
+            className="drop-preview-overlay"
+            style={{
+              position: 'absolute',
+              left: '40px',
+              right: '40px',
+              bottom: `${(dragPreview.bottomU - 1) * UNIT_HEIGHT}px`,
+              height: `${dragPreview.sizeU * UNIT_HEIGHT}px`,
+              backgroundColor: dragPreview.isValid ? 'rgba(63, 185, 80, 0.2)' : 'rgba(218, 54, 51, 0.2)',
+              border: `2px ${dragPreview.isValid ? 'solid' : 'dashed'} ${dragPreview.isValid ? '#3fb950' : '#da3633'}`,
+              borderRadius: '4px',
+              pointerEvents: 'none',
+              zIndex: 100,
+              boxShadow: dragPreview.isValid 
+                ? '0 0 20px rgba(63, 185, 80, 0.5)' 
+                : '0 0 20px rgba(218, 54, 51, 0.5)',
+              maxHeight: `${rack.size_u * UNIT_HEIGHT}px`,
+            }}
+          />
+        )}
       </div>
     </div>
   );

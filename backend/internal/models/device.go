@@ -65,6 +65,7 @@ type CreateDeviceRequest struct {
 
 // UpdateDeviceRequest represents a request to update a device
 type UpdateDeviceRequest struct {
+	RackID         *int         `json:"rack_id"`
 	Name           *string      `json:"name"`
 	Icon           *string      `json:"icon"`
 	Type           *DeviceType  `json:"type"`
