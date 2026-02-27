@@ -1,63 +1,60 @@
-# Multi-stage build for RackView backend
-# Stage 1: Build
-FROM golang:1.21-alpine AS builder
+# Stage 1: Build React frontend
+FROM node:18-alpine AS frontend-builder
 
-# Install build dependencies
-RUN apk add --no-cache git
+WORKDIR /app
 
-# Set working directory
-WORKDIR /build
+COPY frontend/package*.json ./
+RUN npm ci
 
-# Copy go mod files (go.mod is in backend directory)
-COPY backend/go.mod backend/go.sum* ./backend/
-WORKDIR /build/backend
+COPY frontend/ ./
+RUN npm run build
 
-# Download dependencies
+# Stage 2: Build Go backend
+FROM golang:1.21-alpine AS backend-builder
+
+WORKDIR /app
+
+COPY backend/go.mod backend/go.sum* ./
 RUN go mod download || true
 
-# Copy source code
-COPY backend/ ./
+COPY backend/internal/ ./internal/
+COPY backend/cmd/ ./cmd/
+COPY backend/go.mod backend/go.sum ./
+COPY backend/migrations/ ./migrations/
 
-# Build the application
-# CGO_ENABLED=0 for static binary
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
-    -ldflags='-w -s -extldflags "-static"' \
-    -o /build/server \
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -ldflags='-w -s' \
+    -o server \
     ./cmd/server
 
-# Stage 2: Runtime
+# Stage 3: Runtime
 FROM alpine:latest
 
-# Install ca-certificates and wget for HTTPS and healthcheck
+LABEL org.opencontainers.image.source="https://github.com/AGlElectronics/rackview"
+LABEL org.opencontainers.image.description="RackView - rack management and visualization"
+
 RUN apk --no-cache add ca-certificates tzdata wget
 
-# Create app user
 RUN addgroup -g 1000 appuser && \
     adduser -D -u 1000 -G appuser appuser
 
 WORKDIR /app
 
-# Copy binary from builder
-COPY --from=builder /build/server ./server
+COPY --from=backend-builder /app/server ./server
+COPY --from=backend-builder /app/migrations ./migrations
+COPY --from=frontend-builder /app/dist ./frontend/dist
 
-# Copy migrations
-COPY --from=builder /build/backend/migrations ./migrations
-
-# Create frontend directory (will be mounted or copied separately if needed)
-RUN mkdir -p /app/frontend/dist
-
-# Change ownership
 RUN chown -R appuser:appuser /app
 
-# Switch to non-root user
 USER appuser
 
-# Expose port
 EXPOSE 8080
 
-# Health check
+ENV PORT=8080
+ENV STATIC_PATH=/app/frontend/dist
+ENV INDEX_PATH=/app/frontend/dist/index.html
+
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:8080/api/racks || exit 1
 
-# Run the application
 CMD ["./server"]

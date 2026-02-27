@@ -18,12 +18,9 @@ services:
       timeout: 5s
       retries: 5
 
-  backend:
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
-    working_dir: /app
-    container_name: rackview-backend
+  rackview:
+    build: .
+    container_name: rackview-app
     environment:
       DB_HOST: postgres
       DB_PORT: 5432
@@ -31,9 +28,6 @@ services:
       DB_PASSWORD: rackview
       DB_NAME: rackview
       DB_SSLMODE: disable
-      PORT: 8080
-      STATIC_PATH: /app/frontend/dist
-      INDEX_PATH: /app/frontend/dist/index.html
     ports:
       - "8080:8080"
     depends_on:
@@ -41,9 +35,7 @@ services:
         condition: service_healthy
     networks:
       - rackview-network
-    volumes:
-      # Mount migrations for development (optional)
-      - ./backend/migrations:/app/migrations:ro
+    restart: unless-stopped
 
   metabase:
     image: metabase/metabase:latest
